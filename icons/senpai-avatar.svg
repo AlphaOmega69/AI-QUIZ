@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#0a2a30"/>
+      <stop offset="100%" stop-color="#03080f"/>
+    </radialGradient>
+    <linearGradient id="hairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1a2233"/>
+      <stop offset="100%" stop-color="#0b0f18"/>
+    </linearGradient>
+    <linearGradient id="jacketGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d2b33"/>
+      <stop offset="100%" stop-color="#061418"/>
+    </linearGradient>
+    <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffe0c2"/>
+      <stop offset="100%" stop-color="#f2c9a3"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <circle cx="100" cy="100" r="98" fill="url(#bgGlow)"/>
+  <circle cx="100" cy="100" r="96" fill="none" stroke="#00f2ff" stroke-width="1.4" opacity="0.55"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#00ff88" stroke-width="0.6" opacity="0.3" stroke-dasharray="2 4"/>
+
+  <!-- shoulders / jacket -->
+  <path d="M40 200 C40 148 66 128 100 128 C134 128 160 148 160 200 Z" fill="url(#jacketGrad)"/>
+  <path d="M40 200 C40 148 66 128 100 128 C134 128 160 148 160 200" fill="none" stroke="#00f2ff" stroke-width="1.2" opacity="0.7"/>
+  <path d="M92 130 L84 150 L100 165 L116 150 L108 130 Z" fill="#04191d"/>
+  <path d="M92 130 L84 150 L100 165" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.8"/>
+  <path d="M108 130 L116 150 L100 165" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.8"/>
+
+  <!-- badge (senior/senpai emblem) -->
+  <circle cx="130" cy="158" r="7" fill="#00131a" stroke="#00f2ff" stroke-width="1.3"/>
+  <path d="M130 154 L132.2 158 L130 162 L127.8 158 Z" fill="#00f2ff"/>
+
+  <!-- neck -->
+  <rect x="88" y="108" width="24" height="26" rx="8" fill="url(#skinGrad)"/>
+
+  <!-- head -->
+  <ellipse cx="100" cy="82" rx="38" ry="42" fill="url(#skinGrad)"/>
+
+  <!-- ears -->
+  <ellipse cx="62" cy="84" rx="6" ry="9" fill="url(#skinGrad)"/>
+  <ellipse cx="138" cy="84" rx="6" ry="9" fill="url(#skinGrad)"/>
+
+  <!-- hair back -->
+  <path d="M58 60 C54 30 78 14 100 14 C122 14 146 30 142 60 C142 74 138 84 138 84 C138 60 128 50 128 50 C118 62 82 62 72 50 C72 50 62 60 62 84 C62 84 58 74 58 60 Z" fill="url(#hairGrad)"/>
+
+  <!-- eyebrows -->
+  <path d="M76 74 Q84 69 92 73" fill="none" stroke="#2a1c14" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M108 73 Q116 69 124 74" fill="none" stroke="#2a1c14" stroke-width="2.6" stroke-linecap="round"/>
+
+  <!-- eyes: friendly closed-smile crescents (warm, approachable expression) -->
+  <path d="M78 85 Q84 80 90 85" fill="none" stroke="#241812" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M110 85 Q116 80 122 85" fill="none" stroke="#241812" stroke-width="2.8" stroke-linecap="round"/>
+
+  <!-- blush -->
+  <ellipse cx="76" cy="96" rx="6" ry="3.4" fill="#ff9a8a" opacity="0.35"/>
+  <ellipse cx="124" cy="96" rx="6" ry="3.4" fill="#ff9a8a" opacity="0.35"/>
+
+  <!-- nose -->
+  <path d="M99 88 Q97 94 100 96" fill="none" stroke="#d8a97e" stroke-width="1.6" stroke-linecap="round"/>
+
+  <!-- smile -->
+  <path d="M88 104 Q100 112 112 104" fill="none" stroke="#7a3b2e" stroke-width="2.6" stroke-linecap="round"/>
+
+  <!-- hair front / fringe -->
+  <path d="M60 62 C58 42 76 26 100 26 C124 26 142 42 140 62 C132 50 122 60 112 52 C104 60 96 60 88 52 C78 60 68 50 60 62 Z" fill="url(#hairGrad)"/>
+  <path d="M60 62 C58 42 76 26 100 26 C124 26 142 42 140 62" fill="none" stroke="#00f2ff" stroke-width="0.8" opacity="0.5" filter="url(#glow)"/>
+
+  <!-- side hair strand accents -->
+  <path d="M60 60 C57 74 58 88 64 96" fill="none" stroke="#0b0f18" stroke-width="5" stroke-linecap="round"/>
+  <path d="M140 60 C143 74 142 88 136 96" fill="none" stroke="#0b0f18" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- glasses (studious senior touch), thin neon rim -->
+  <rect x="70" y="79" width="24" height="15" rx="6" fill="none" stroke="#00f2ff" stroke-width="1.3" opacity="0.85"/>
+  <rect x="106" y="79" width="24" height="15" rx="6" fill="none" stroke="#00f2ff" stroke-width="1.3" opacity="0.85"/>
+  <path d="M94 86 L106 86" stroke="#00f2ff" stroke-width="1.3" opacity="0.85"/>
+  <path d="M70 86 L60 84" stroke="#00f2ff" stroke-width="1.1" opacity="0.7"/>
+  <path d="M130 86 L140 84" stroke="#00f2ff" stroke-width="1.1" opacity="0.7"/>
+
+  <!-- floating data glyphs (senpai/AI motif) -->
+  <circle cx="34" cy="46" r="2.2" fill="#00ff88" filter="url(#glow)"/>
+  <circle cx="168" cy="52" r="1.8" fill="#00f2ff" filter="url(#glow)"/>
+  <circle cx="176" cy="120" r="2" fill="#00ff88" filter="url(#glow)"/>
+</svg>

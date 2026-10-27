@@ -1,0 +1,10 @@
+{
+  "appId": "com.aiquizpro.hybrid",
+  "appName": "AI Quiz Pro",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "backgroundColor": "#00131a",
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "ai-quiz-pro-hybrid",
+  "version": "1.0.0",
+  "description": "AI Quiz Pro — generates quizzes from text, PDF, image, audio, or YouTube video using AI.",
+  "scripts": {
+    "cap:add-android": "cap add android",
+    "cap:sync": "cap sync android"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/android": "^6.1.2"
+  }
+}

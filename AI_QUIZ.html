@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>AI QUIZ PRO - HYBRID</title>
+    <meta name="description" content="AI Quiz Pro — generate quizzes from any topic, PDF, image, audio or video with AI.">
+    <meta name="theme-color" content="#121225" id="theme-color-meta">
+    <meta name="color-scheme" content="dark light">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script async defer src="https://connect.facebook.net/en_US/sdk.js"></script>
+</head>
+<body>
+
+<video autoplay muted loop playsinline id="bg-video" onerror="this.style.display='none';" onstalled="this.style.display='none';">
+    <source src="assets/default.mp4" type="video/mp4">
+</video>
+<canvas id="particle-network"></canvas>
+<div class="overlay"></div>
+
+<div id="loading">
+    <div class="skeleton-loader" style="width: 100px; height: 100px; border-radius: 50%; margin-bottom: 20px;"></div>
+    <span id="loading-text">SYNCING NEURAL NETWORK...</span><br>
+    <span id="loading-subtext" style="font-size: 0.6rem; opacity: 0.5;">Establishing API Connection...</span>
+</div>
+
+<div id="splash-screen">
+    <h1 class="glitch-text" style="color: var(--primary); font-size: 3.5rem; letter-spacing: -2px; margin-bottom: 30px;" data-text="AI QUIZ PRO">AI QUIZ PRO</h1>
+    <div style="color: var(--success); font-size: 0.8rem; margin-bottom: 30px; font-weight: bold; letter-spacing: 2px;">HYBRID: GROQ + GEMINI</div>
+    <button id="init-btn">INITIALIZE SYSTEM</button>
+</div>
+
+<div id="login-screen" style="display:none;">
+    <div id="login-card">
+        <div id="login-badge">
+            <svg viewBox="0 0 60 60" width="52" height="52">
+                <circle cx="30" cy="30" r="28" fill="none" stroke="#00f2ff" stroke-width="1.6" opacity="0.8"/>
+                <circle cx="30" cy="30" r="22" fill="none" stroke="#00ff88" stroke-width="0.6" stroke-dasharray="2 4" opacity="0.5"/>
+                <circle cx="30" cy="30" r="7" fill="#00131a" stroke="#00f2ff" stroke-width="1.6"/>
+                <circle cx="30" cy="30" r="2.6" fill="#00f2ff"/>
+                <circle cx="30" cy="10" r="2" fill="#00ff88"/>
+                <circle cx="49" cy="22" r="1.6" fill="#00f2ff"/>
+                <circle cx="49" cy="38" r="1.6" fill="#00ff88"/>
+                <circle cx="30" cy="50" r="2" fill="#00f2ff"/>
+                <circle cx="11" cy="38" r="1.6" fill="#00ff88"/>
+                <circle cx="11" cy="22" r="1.6" fill="#00f2ff"/>
+                <line x1="30" y1="23" x2="30" y2="12" stroke="#00f2ff" stroke-width="0.8" opacity="0.6"/>
+                <line x1="35" y1="27" x2="46" y2="23" stroke="#00ff88" stroke-width="0.8" opacity="0.6"/>
+                <line x1="35" y1="33" x2="46" y2="37" stroke="#00f2ff" stroke-width="0.8" opacity="0.6"/>
+            </svg>
+        </div>
+        <h2 style="color: var(--primary); letter-spacing: 1px; margin: 14px 0 4px;">WELCOME TO AI QUIZ PRO</h2>
+        <div style="font-size: 0.65rem; opacity: 0.55; margin-bottom: 24px;">Sign in to keep your progress tied to a name — or jump straight in as a guest.</div>
+
+        <div id="login-options">
+            <button class="login-btn brand-google" id="google-login-btn" onclick="loginWithGoogle()">
+                <svg class="login-icon" viewBox="0 0 48 48" width="18" height="18"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.5 29.6 4.5 24 4.5 12.7 4.5 3.5 13.7 3.5 25S12.7 45.5 24 45.5 44.5 36.3 44.5 25c0-1.5-.2-2.9-.4-4.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.5 29.6 4.5 24 4.5c-7.7 0-14.4 4.4-17.7 10.2z"/><path fill="#4CAF50" d="M24 45.5c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.4C29.6 36.7 27 37.5 24 37.5c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C9.5 41 16.2 45.5 24 45.5z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.6 5.4C41.9 35.9 44.5 30.9 44.5 25c0-1.5-.2-2.9-.4-4.5z"/></svg>
+                Continue with Google
+                <span class="setup-needed-badge" id="google-setup-badge" style="display:none;">setup needed</span>
+            </button>
+            <button class="login-btn brand-facebook" id="facebook-login-btn" onclick="loginWithFacebook()">
+                <svg class="login-icon" viewBox="0 0 24 24" width="18" height="18"><path fill="#fff" d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.23 10.44 22v-7.03H7.9v-2.91h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.91h-2.34V22C18.34 21.23 22 17.08 22 12.06z"/></svg>
+                Continue with Facebook
+                <span class="setup-needed-badge" id="facebook-setup-badge" style="display:none;">setup needed</span>
+            </button>
+
+            <div class="login-divider"><span>or</span></div>
+
+            <button class="login-btn" onclick="showEmailLogin()">
+                <span class="login-icon">✉️</span> Continue with Email
+            </button>
+            <button class="login-btn guest" onclick="loginAsGuest()">
+                <span class="login-icon">👤</span> Continue as Guest
+            </button>
+        </div>
+
+        <div id="email-login-form" style="display:none;">
+            <input type="text" id="login-name" class="settings-key-input" placeholder="Your name" style="margin-top:14px;">
+            <input type="email" id="login-email" class="settings-key-input" placeholder="you@example.com">
+            <button class="btn full-btn" style="background:var(--primary); color:#000;" onclick="loginWithEmail()">CONTINUE</button>
+            <button class="btn full-btn" style="opacity:0.6; margin-top:6px;" onclick="hideEmailLogin()">← back</button>
+        </div>
+
+        <div class="login-note">No password needed — this app has no server, so nothing you enter here ever leaves your device. It just personalizes your local profile.</div>
+    </div>
+</div>
+
+<audio id="study-music-player"></audio>
+
+<div id="app-shell" style="display:none;">
+<aside id="sidebar">
+    <div id="sidebar-brand">
+        <img src="icons/icon-192.png" alt="" id="sidebar-logo">
+        <span id="sidebar-brand-text">AI QUIZ <em>PRO</em></span>
+    </div>
+
+    <nav id="sidebar-nav">
+        <button class="nav-item active" data-page="home" onclick="navigateTo('home')">
+            <span class="nav-icon">🏠</span><span class="nav-label">Home</span>
+        </button>
+        <button class="nav-item" data-page="daily" onclick="showDailyPage()">
+            <span class="nav-icon">🔥</span><span class="nav-label">Daily</span>
+        </button>
+        <button class="nav-item" data-page="custom" onclick="navigateTo('custom')">
+            <span class="nav-icon">🛠️</span><span class="nav-label">Custom Quiz</span>
+        </button>
+        <button class="nav-item" data-page="study" onclick="showStudyHub()">
+            <span class="nav-icon">📚</span><span class="nav-label">Study Hub</span>
+        </button>
+        <button class="nav-item" data-page="flashcards" onclick="showFlashcardsPage()">
+            <span class="nav-icon">🗂️</span><span class="nav-label">Flashcards</span>
+        </button>
+        <button class="nav-item" data-page="arcade" onclick="navigateTo('arcade')">
+            <span class="nav-icon">🕹️</span><span class="nav-label">Arcade</span>
+        </button>
+        <div class="nav-divider"></div>
+        <button class="nav-item" data-page="report" onclick="showReport()">
+            <span class="nav-icon">📈</span><span class="nav-label">Report</span>
+        </button>
+        <button class="nav-item" data-page="achievements" onclick="showAchievements()">
+            <span class="nav-icon">🏆</span><span class="nav-label">Awards</span>
+        </button>
+        <button class="nav-item" data-page="history" onclick="showHistory()">
+            <span class="nav-icon">📜</span><span class="nav-label">History</span>
+        </button>
+        <div class="nav-divider"></div>
+        <button class="nav-item" data-page="feedback" onclick="openFeedback()">
+            <span class="nav-icon">💬</span><span class="nav-label">Feedback</span>
+        </button>
+        <button class="nav-item" data-page="help" onclick="openHelp()">
+            <span class="nav-icon">❓</span><span class="nav-label">Help &amp; Support</span>
+        </button>
+    </nav>
+
+    <div id="sidebar-footer">
+        <button id="sidebar-profile-btn" onclick="toggleProfile()">
+            <img id="nav-pfp" src="https://api.dicebear.com/7.x/bottts/svg?seed=Guest" alt="">
+            <span id="sidebar-profile-text">
+                <span id="nav-name">GUEST_01</span>
+                <span id="sidebar-profile-rank">LEARNER</span>
+            </span>
+            <span class="sidebar-profile-gear">⚙️</span>
+        </button>
+    </div>
+</aside>
+<div id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+<nav id="mobile-bottom-nav">
+    <button class="nav-item" data-page="home" onclick="navigateTo('home')">
+        <span class="nav-icon">🏠</span><span class="nav-label">Home</span>
+    </button>
+    <button class="nav-item" data-page="daily" onclick="showDailyPage()">
+        <span class="nav-icon">🔥</span><span class="nav-label">Daily</span>
+    </button>
+    <button class="nav-item" data-page="arcade" onclick="navigateTo('arcade')">
+        <span class="nav-icon">🕹️</span><span class="nav-label">Arcade</span>
+    </button>
+    <button class="nav-item" data-page="flashcards" onclick="showFlashcardsPage()">
+        <span class="nav-icon">🗂️</span><span class="nav-label">Cards</span>
+    </button>
+    <button class="nav-item" onclick="toggleMobileSidebar()">
+        <span class="nav-icon">☰</span><span class="nav-label">More</span>
+    </button>
+</nav>
+    <div id="app-main">
+<header id="app-topbar">
+    <button id="sidebar-toggle-btn" onclick="toggleMobileSidebar()" aria-label="Menu">
+        <span></span><span></span><span></span>
+    </button>
+    <div id="topbar-title">Home</div>
+    <div id="topbar-actions">
+        <button id="topbar-profile-chip" onclick="toggleProfile()" aria-label="Profile">
+            <span class="level-ring-wrap">
+                <svg class="level-ring" viewBox="0 0 40 40" width="34" height="34">
+                    <circle class="level-ring-track" cx="20" cy="20" r="16" fill="none" stroke-width="3"></circle>
+                    <circle class="level-ring-progress" cx="20" cy="20" r="16" fill="none" stroke-width="3" data-radius="16" transform="rotate(-90 20 20)"></circle>
+                </svg>
+                <img id="topbar-pfp" src="https://api.dicebear.com/7.x/bottts/svg?seed=Guest" alt="">
+            </span>
+            <span class="level-badge-num" id="topbar-level-num">1</span>
+            <span id="topbar-profile-name">GUEST_01</span>
+        </button>
+    </div>
+</header>
+        <div id="quiz-resume-banner" role="status" aria-live="polite" style="display:none;">
+            <span class="qrb-dot"></span>
+            <span id="qrb-text">Quiz in progress</span>
+            <button class="btn qrb-btn" onclick="resumeQuizFromBanner()">RESUME</button>
+            <button class="btn qrb-btn qrb-discard" onclick="discardQuizFromBanner()" aria-label="Discard quiz">✕</button>
+        </div>
+        <div id="page-content">
+<section id="page-home" class="app-page active">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title" id="home-greeting">Welcome back</h1>
+            <p class="page-subtitle">Pick a sector to start a quiz, or bring your own material.</p>
+        </div>
+        <div id="streak-badge" class="streak-badge" style="display:none;">
+            <span class="streak-flame">🔥</span>
+            <div>
+                <div id="streak-count">0</div>
+                <div class="streak-label">day streak</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-label">QUICK START</div>
+    <div class="topic-card-grid">
+        <button class="topic-card" onclick="selectTopic('Video Games')" style="--accent:#ff2fd0;">
+            <span class="topic-icon">🎮</span>
+            <span class="topic-name">Video Games</span>
+        </button>
+        <button class="topic-card" onclick="selectTopic('Science')" style="--accent:#00ff88;">
+            <span class="topic-icon">🧬</span>
+            <span class="topic-name">Science</span>
+        </button>
+        <button class="topic-card" onclick="selectTopic('Mathematics')" style="--accent:#3d8bff;">
+            <span class="topic-icon">🔢</span>
+            <span class="topic-name">Mathematics</span>
+        </button>
+        <button class="topic-card" onclick="selectTopic('General Knowledge')" style="--accent:#ffb700;">
+            <span class="topic-icon">🌏</span>
+            <span class="topic-name">General Knowledge</span>
+        </button>
+    </div>
+
+    <div class="section-label">BUILD YOUR OWN</div>
+    <div class="action-card-row">
+        <button class="action-card" onclick="navigateTo('custom')">
+            <span class="action-card-icon">🛠️</span>
+            <span class="action-card-text">
+                <span class="action-card-title">Custom Quiz</span>
+                <span class="action-card-desc">Topic, PDF, image, audio, or a YouTube video</span>
+            </span>
+            <span class="action-card-arrow">→</span>
+        </button>
+        <button class="action-card" onclick="showStudyHub()">
+            <span class="action-card-icon">📚</span>
+            <span class="action-card-text">
+                <span class="action-card-title">Study Hub</span>
+                <span class="action-card-desc">Notes, your PDF library, and study music</span>
+            </span>
+            <span class="action-card-arrow">→</span>
+        </button>
+    </div>
+</section>
+
+<section id="page-custom" class="app-page">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title">Custom Quiz</h1>
+            <p class="page-subtitle">Bring your own material — a topic, a document, or a video — and we'll build the quiz.</p>
+        </div>
+    </div>
+
+    <div class="section-label">FROM A FILE</div>
+    <div class="source-card-grid">
+        <label for="pdf-input" class="source-card" style="--accent:#00f2ff;">
+            <span class="source-card-icon">📁</span>
+            <span class="source-card-label">Upload Document</span>
+        </label>
+        <input type="file" id="pdf-input" accept="application/pdf,.txt,.md,.markdown,text/plain,text/markdown" style="display: none;" onchange="handlePDFUpload(event)">
+
+        <label for="img-data-input" class="source-card" style="--accent:#ff2fd0;">
+            <span class="source-card-icon">📸</span>
+            <span class="source-card-label">Upload Image</span>
+        </label>
+        <input type="file" id="img-data-input" accept="image/*" style="display: none;" onchange="handleImageAnalysisUpload(event)">
+
+        <button id="audio-record-btn" class="source-card" style="--accent:#ffb700;" onclick="toggleAudioRecord()">
+            <span class="source-card-icon">🎙️</span>
+            <span class="source-card-label">Record Live</span>
+        </button>
+
+        <label for="audio-upload-input" class="source-card" style="--accent:#00ff88;">
+            <span class="source-card-icon">🎵</span>
+            <span class="source-card-label">Upload Audio</span>
+        </label>
+        <input type="file" id="audio-upload-input" accept="audio/*" style="display: none;" onchange="handleAudioUpload(event)">
+    </div>
+    <button id="audio-download-btn" class="btn full-btn" style="display: none; border-color: var(--success); color: var(--success); font-size: 0.65rem; margin-top:10px;" onclick="downloadRecording()">💾 DOWNLOAD RECORDING</button>
+
+    <div id="custom-status" class="source-status">No active data stream</div>
+
+    <div class="section-label">FROM A TOPIC</div>
+    <div class="input-card">
+        <input type="text" id="custom-topic" placeholder="e.g. The French Revolution, Organic Chemistry, NBA history...">
+        <button class="btn full-btn" style="background:var(--primary); color:#000; border:none;" onclick="selectTopic(document.getElementById('custom-topic').value)">🚀 GENERATE QUIZ</button>
+    </div>
+
+    <div class="section-label">FROM YOUTUBE</div>
+    <div class="input-card">
+        <input type="text" id="yt-url" placeholder="Paste a YouTube video URL...">
+        <button class="btn full-btn" style="border-color: #ff0055; color: #ff0055;" onclick="analyzeYouTube()">▶ ANALYZE VIDEO</button>
+
+        <div id="yt-fallback" style="display: none; margin-top: 12px;">
+            <textarea id="manual-transcript" placeholder="Paste manual transcript/text here..." class="styled-textarea"></textarea>
+            <button class="btn full-btn" onclick="processManualTranscript()" style="margin-top: 10px;">USE THIS TEXT</button>
+        </div>
+    </div>
+</section>
+
+<section id="page-study" class="app-page app-page-wide">
+<h2 style="color: var(--primary);">📚 STUDY HUB</h2>
+        <div class="modal-tabs">
+            <button class="tab-btn active" onclick="switchStudyTab('notes', this)">📝 NOTES</button>
+            <button class="tab-btn" onclick="switchStudyTab('pdfs', this)">📄 PDFS</button>
+            <button class="tab-btn" onclick="switchStudyTab('music', this)">🎵 MUSIC</button>
+        </div>
+
+        <div id="study-tab-notes" class="tab-content active">
+            <textarea id="study-notepad" class="styled-textarea" style="height:280px;" placeholder="Write your study notes here — synced with your profile notepad." oninput="saveNotes('study-notepad')"></textarea>
+            <button class="btn full-btn" style="margin-top:10px; border-color: var(--danger); color: var(--danger);" onclick="saveNotesAsPdf()">📄 SAVE NOTES AS PDF</button>
+        </div>
+
+        <div id="study-tab-pdfs" class="tab-content">
+            <input type="file" id="pdf-upload-input" accept="application/pdf" multiple style="display:none;" onchange="handlePdfUpload(event)">
+            <button class="btn full-btn" style="border-color: var(--primary); color: var(--primary);" onclick="document.getElementById('pdf-upload-input').click()">＋ ADD PDF</button>
+            <div class="settings-hint" style="margin-top:8px;">Tick 2 or more PDFs below to combine them into one 100-question mega quiz spanning all their topics.</div>
+            <div id="pdf-library-list" style="margin-top:12px;"></div>
+            <div id="mega-quiz-bar" class="mega-quiz-bar" style="display:none;">
+                <span id="mega-quiz-count">0 selected</span>
+                <button class="btn" style="background:var(--primary); color:#000; border:none; font-size:0.62rem;" onclick="generateMegaQuiz()">🧩 GENERATE MEGA QUIZ (100Q)</button>
+            </div>
+
+            <div id="pdf-viewer" style="display:none; margin-top:12px;">
+                <div class="pdf-viewer-toolbar">
+                    <button class="ui-btn" style="padding:6px 10px; font-size:0.6rem;" onclick="closePdfViewer()">← BACK</button>
+                    <span id="pdf-viewer-title" class="pdf-viewer-title"></span>
+                </div>
+                <div id="pdf-canvas-wrap"><canvas id="pdf-canvas"></canvas></div>
+                <div class="pdf-viewer-toolbar" style="justify-content:center; gap:16px;">
+                    <button class="ui-btn" style="padding:6px 12px;" onclick="pdfPrevPage()">‹ PREV</button>
+                    <span id="pdf-page-indicator" style="font-size:0.65rem;"></span>
+                    <button class="ui-btn" style="padding:6px 12px;" onclick="pdfNextPage()">NEXT ›</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="study-tab-music" class="tab-content">
+            <input type="file" id="music-folder-input" webkitdirectory multiple accept="audio/*" style="display:none;" onchange="handleMusicFolder(event)">
+            <button class="btn full-btn" style="border-color: var(--success); color: var(--success);" onclick="document.getElementById('music-folder-input').click()">📁 ADD LOCAL MUSIC FOLDER</button>
+
+            <div id="music-player" style="display:none;">
+                <div id="music-now-playing">
+                    <div id="music-track-name">—</div>
+                    <div id="music-track-progress-track"><div id="music-track-progress-fill"></div></div>
+                </div>
+                <div id="music-controls">
+                    <button class="ui-btn" onclick="musicPrev()">⏮</button>
+                    <button class="ui-btn" id="music-play-btn" onclick="musicTogglePlay()">▶</button>
+                    <button class="ui-btn" onclick="musicNext()">⏭</button>
+                    <button class="ui-btn" id="music-shuffle-btn" onclick="musicToggleShuffle()">🔀</button>
+                </div>
+                <div id="music-playlist"></div>
+            </div>
+            <div class="settings-hint">Pick a folder once per session — browsers don't let sites remember folder access across reloads, so you'll re-select it each time you visit. Nothing is uploaded; playback happens entirely on your device.</div>
+        </div>
+</section>
+
+<section id="page-report" class="app-page">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title">Report &amp; Analytics</h1>
+            <p class="page-subtitle">Your overall results, score trend, topic strengths, and where your time goes.</p>
+        </div>
+    </div>
+
+    <div id="report-empty" class="report-empty" style="display:none;">NO SESSIONS LOGGED YET.<br>Complete a quiz to generate your report.</div>
+
+    <div id="report-body" style="display:none; text-align:left;">
+        <div class="report-summary-grid" id="report-summary-grid"></div>
+        <div id="report-best-worst"></div>
+
+        <div class="section-label">SCORE TREND</div>
+        <div class="chart-card" id="vz-trend"></div>
+
+        <div class="section-label">ACCURACY BY TOPIC</div>
+        <div class="chart-card" id="vz-topic"></div>
+
+        <div class="section-label">AVG. TIME PER QUESTION BY TOPIC</div>
+        <div class="chart-card" id="vz-time"></div>
+    </div>
+</section>
+
+<section id="page-achievements" class="app-page">
+<h2 style="color: var(--warning);">🏆 AWARDS</h2>
+        <div id="ach-progress-summary" class="ach-progress-summary"></div>
+        <div id="ach-grid" class="ach-grid"></div>
+</section>
+
+<section id="page-history" class="app-page">
+<h2 style="color: var(--primary);">NEURAL LOGS</h2>
+        <div id="history-list"></div>
+        <div class="grid-menu">
+            <button class="btn full-btn" onclick="exportLogs()" style="border-color: var(--success); color: var(--success);">💾 EXPORT LOGS (.JSON)</button>
+            <button class="btn" onclick="clearHistory()" style="color: var(--danger); border-color: var(--danger); font-size: 0.6rem;">⚠︎ WIPE DATA</button>
+        </div>
+</section>
+
+<section id="page-feedback" class="app-page">
+<h2 style="color: var(--success);">💬 FEEDBACK</h2>
+        <div style="font-size:0.65rem; opacity:0.6; margin-bottom:14px;">Found a bug, or have an idea to make this better? Let us know.</div>
+        <textarea id="feedback-text" class="styled-textarea" style="height:150px;" placeholder="Type your recommendation, bug report, or feedback..."></textarea>
+        <div id="feedback-rating" style="margin: 12px 0; text-align:center;">
+            <span style="font-size:0.6rem; opacity:0.6; display:block; margin-bottom:6px;">HOW'S YOUR EXPERIENCE SO FAR?</span>
+            <span class="star" data-val="1" onclick="setFeedbackRating(1)">★</span><span class="star" data-val="2" onclick="setFeedbackRating(2)">★</span><span class="star" data-val="3" onclick="setFeedbackRating(3)">★</span><span class="star" data-val="4" onclick="setFeedbackRating(4)">★</span><span class="star" data-val="5" onclick="setFeedbackRating(5)">★</span>
+        </div>
+        <div class="feedback-btn-row">
+            <button class="btn" style="background:var(--success); color:#000; border:none;" onclick="sendFeedback()">✉️ EMAIL</button>
+            <button class="btn" style="background:#25D366; color:#062f14; border:none;" onclick="sendFeedbackWhatsApp()">💬 WHATSAPP</button>
+        </div>
+        <button class="btn full-btn" style="margin-top:8px; font-size:0.6rem;" onclick="copyFeedback()">📋 COPY TEXT INSTEAD</button>
+        <a id="feedback-mailto-link" href="#" style="display:none;"></a>
+        <a id="feedback-whatsapp-link" href="#" target="_blank" rel="noopener" style="display:none;"></a>
+        <div id="feedback-confirm" class="settings-hint" style="text-align:center; min-height:14px;"></div>
+</section>
+
+<section id="page-help" class="app-page app-page-wide">
+<h2 style="color: var(--primary);">❓ HELP & SUPPORT</h2>
+        <div class="faq-item">
+            <div class="faq-q">I don't have quizzes generating — what's wrong?</div>
+            <div class="faq-a">Open your profile icon (top-left) → ⚙️ SET, and make sure a Gemini API key is entered. It's free — get one at aistudio.google.com/apikey. A Groq key is optional and just makes text-based quizzes faster.</div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q">Why did my YouTube video fail to import?</div>
+            <div class="faq-a">YouTube blocks direct browser access to transcripts. If you've added a RapidAPI key in Settings we'll try that automatically; otherwise (or if it fails) copy the transcript yourself from YouTube's "⋯ → Show transcript" menu and paste it into the manual box that appears.</div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q">How do I install this as an app?</div>
+            <div class="faq-a">On Android/desktop Chrome or Edge, use the browser's "Install app" option, or Settings → "Install as App" inside this app. See BUILD_INSTRUCTIONS.md in the project files for a real .apk / .exe.</div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q">Is my data private?</div>
+            <div class="faq-a">Everything — your notes, PDFs, quiz history, API keys, and login profile — is stored only in this browser on this device. Nothing is uploaded to a server we control. AI requests go directly from your browser to Google/Groq using your own key.</div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q">Still stuck?</div>
+            <div class="faq-a">Ask AI Support below, or use the 💬 Feedback button on the home screen to send us a note directly.</div>
+        </div>
+
+        <div class="report-section-title">🤖 ASK AI SUPPORT</div>
+        <div id="support-chat-box">
+            <div id="support-chat-messages"></div>
+            <div id="support-chat-input-row">
+                <input type="text" id="support-chat-input" placeholder="Ask about a bug, a feature, anything..." onkeydown="if(event.key==='Enter')sendSupportMessage();">
+                <button id="support-chat-send" onclick="sendSupportMessage()">➤</button>
+            </div>
+        </div>
+</section>
+
+<section id="page-daily" class="app-page">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title">Daily</h1>
+            <p class="page-subtitle">Keep your streak alive and clear today's tasks for bonus XP.</p>
+        </div>
+    </div>
+
+    <div class="streak-hero">
+        <div class="streak-hero-flame">🔥</div>
+        <div class="streak-hero-count" id="daily-streak-count">0</div>
+        <div class="streak-hero-label">DAY STREAK</div>
+    </div>
+
+    <div id="daily-week-strip" class="week-strip"></div>
+
+    <div class="section-label">YOUR LEVEL</div>
+    <div class="daily-level-card">
+        <span class="level-pill lg">LV <span id="daily-level-num">1</span></span>
+        <div class="daily-level-bar-wrap">
+            <div class="exp-bar-track"><div class="exp-bar-fill" id="daily-exp-bar-fill" style="width:0%;"></div></div>
+            <div class="exp-bar-label" id="daily-exp-bar-label">0/100 XP</div>
+        </div>
+    </div>
+
+    <div class="section-label">TODAY'S TASKS</div>
+    <div id="daily-complete-banner" class="daily-complete-banner" style="display:none;">
+        <span class="daily-complete-icon">🎉</span>
+        <div>
+            <div class="daily-complete-title">All tasks complete!</div>
+            <div class="daily-complete-sub">+25 bonus XP — come back tomorrow for more</div>
+        </div>
+    </div>
+    <div id="daily-task-list"></div>
+
+    <div class="due-review-card-wrap" style="display:none; margin-top: 10px;">
+        <div class="section-label">SPACED REPETITION</div>
+        <button class="continue-card" onclick="startDueReviewQuiz()" style="border-color: rgba(255,183,0,0.35);">
+            <span class="continue-card-icon">📌</span>
+            <span class="continue-card-text">
+                <span class="continue-card-title">Due for Review</span>
+                <span class="continue-card-desc"><span class="due-review-count">0</span> questions are ready to reinforce</span>
+            </span>
+            <span class="action-card-arrow">→</span>
+        </button>
+    </div>
+
+    <div class="section-label">POWER-UP SHOP</div>
+    <div class="spendable-xp-banner">
+        <span>SPENDABLE XP</span>
+        <span class="spendable-xp-label">0</span>
+    </div>
+    <div id="powerup-shop-grid" class="powerup-shop-grid"></div>
+</section>
+<section id="page-flashcards" class="app-page">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title">Flashcards</h1>
+            <p class="page-subtitle">3-box spaced repetition — 1, 3, and 7 day intervals.</p>
+        </div>
+    </div>
+
+    <div class="report-summary-grid">
+        <div class="report-stat-card"><div class="val" id="flashcard-due-count">0</div><div class="lbl">Due Now</div></div>
+        <div class="report-stat-card"><div class="val" id="flashcard-total-count">0</div><div class="lbl">Total Cards</div></div>
+    </div>
+
+    <button class="btn full-btn" style="background:var(--primary); color:#000; border:none; margin-bottom:8px;" onclick="startFlashcardSession()">▶ STUDY DUE CARDS</button>
+    <button class="btn full-btn" style="border-color:var(--warning); color:var(--warning); margin-bottom:20px;" onclick="generateFlashcardsFromWeakSpots()">✨ GENERATE FROM WEAK SPOTS</button>
+
+    <div id="flashcard-session-empty" class="report-empty" style="display:none;">Nothing due right now — nice work staying on top of it! Add more cards below.</div>
+
+    <div id="flashcard-session-active" style="display:none;">
+        <div id="flashcard-progress" style="text-align:center; font-size:0.65rem; opacity:0.6; margin-bottom:10px;">1 / 1</div>
+        <div id="flashcard-3d-wrap" onclick="flipFlashcard()">
+            <div id="flashcard-3d">
+                <div class="flashcard-face flashcard-front">
+                    <span class="flashcard-tap-hint">TAP TO FLIP</span>
+                    <div id="flashcard-front-text" class="flashcard-text"></div>
+                </div>
+                <div class="flashcard-face flashcard-back">
+                    <div id="flashcard-back-text" class="flashcard-text"></div>
+                </div>
+            </div>
+        </div>
+        <div id="flashcard-grade-buttons" class="flashcard-grade-buttons" style="display:none;">
+            <button class="btn full-btn" style="border-color:var(--danger); color:var(--danger);" onclick="answerFlashcard(false)">✕ DIDN'T KNOW</button>
+            <button class="btn full-btn" style="background:var(--success); color:#000; border:none;" onclick="answerFlashcard(true)">✔ KNEW IT</button>
+        </div>
+    </div>
+
+    <div id="flashcard-session-done" class="report-empty" style="display:none;">🎉 Session complete — all due cards reviewed.</div>
+
+    <div class="section-label">ADD A CARD</div>
+    <div class="input-card" style="margin-bottom: 20px;">
+        <input type="text" id="flashcard-front-input" placeholder="Front (question / term)">
+        <textarea id="flashcard-back-input" class="styled-textarea" style="height:70px;" placeholder="Back (answer / definition)"></textarea>
+        <button class="btn full-btn" onclick="submitNewFlashcard()">＋ ADD FLASHCARD</button>
+    </div>
+
+    <div class="section-label">YOUR CARDS</div>
+    <div id="flashcard-library-list"></div>
+</section>
+
+<!-- ============================================================================
+     ARCADE — hub + one dedicated page per game (Riddle Rush, Quiz Duel)
+     ============================================================================ -->
+<section id="page-arcade" class="app-page">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title">Arcade</h1>
+            <p class="page-subtitle">Pick a game. Each one opens in its own window — XP and badges carry over to your profile.</p>
+        </div>
+    </div>
+
+    <div class="arcade-stat-row">
+        <div class="arcade-stat"><div class="arcade-stat-num" id="arcade-stat-riddles">0</div><div class="arcade-stat-label">RIDDLES SOLVED</div></div>
+        <div class="arcade-stat"><div class="arcade-stat-num" id="arcade-stat-best">0</div><div class="arcade-stat-label">BEST RUN SCORE</div></div>
+        <div class="arcade-stat"><div class="arcade-stat-num" id="arcade-stat-streak">0</div><div class="arcade-stat-label">BEST STREAK</div></div>
+        <div class="arcade-stat"><div class="arcade-stat-num" id="arcade-stat-duel">0</div><div class="arcade-stat-label">DUEL WINS</div></div>
+    </div>
+
+    <div class="section-label">GAMES</div>
+    <div class="arcade-tile-grid">
+        <button class="arcade-tile arcade-tile-riddles" onclick="navigateTo('riddles')">
+            <span class="arcade-tile-icon">🧩</span>
+            <span class="arcade-tile-title">Riddle Rush</span>
+            <span class="arcade-tile-desc">Beat the clock on 8 riddles with hints and streak bonuses, or race a friend head-to-head.</span>
+            <span class="arcade-tile-tags"><span>SOLO</span><span>PVP</span><span>HINTS</span></span>
+            <span class="arcade-tile-cta">OPEN ▸</span>
+        </button>
+        <button class="arcade-tile arcade-tile-duel" onclick="navigateTo('duel')">
+            <span class="arcade-tile-icon">⚔️</span>
+            <span class="arcade-tile-title">Quiz Duel</span>
+            <span class="arcade-tile-desc">1v1 knowledge battle. Right answers hit your opponent, wrong ones hit you. Play a bot or a friend.</span>
+            <span class="arcade-tile-tags"><span>VS BOT</span><span>PVP</span><span>AI QUESTIONS</span></span>
+            <span class="arcade-tile-cta">OPEN ▸</span>
+        </button>
+    </div>
+
+    <div class="section-label">DAILY RIDDLE</div>
+    <div class="chart-card" id="daily-riddle-card">
+        <div id="daily-riddle-status" class="arcade-daily-status"></div>
+        <p id="daily-riddle-text" style="font-weight:700; margin:0 0 12px; line-height:1.5;"></p>
+        <div id="daily-riddle-form">
+            <input type="text" id="daily-riddle-input" placeholder="Your answer..." autocomplete="off" onkeydown="if(event.key==='Enter')submitDailyRiddle();">
+            <button class="btn full-btn" style="margin-top:10px; width:100%;" onclick="submitDailyRiddle()">SUBMIT</button>
+        </div>
+        <div id="daily-riddle-feedback" class="rd-feedback"></div>
+    </div>
+</section>
+
+<!-- ================= RIDDLE RUSH (own window) ================= -->
+<section id="page-riddles" class="app-page">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title">🧩 Riddle Rush</h1>
+            <p class="page-subtitle">Solve fast, use hints wisely, keep your streak alive.</p>
+        </div>
+        <button class="btn arcade-back-btn" onclick="navigateTo('arcade')">← ARCADE</button>
+    </div>
+
+    <!-- Setup -->
+    <div id="rd-setup">
+        <div class="section-label">DIFFICULTY</div>
+        <div id="rd-diff-chips" class="rd-chip-row">
+            <button class="rd-chip" data-diff="easy" onclick="rdSelectDiff('easy')">😌 EASY</button>
+            <button class="rd-chip active" data-diff="medium" onclick="rdSelectDiff('medium')">🤔 MEDIUM</button>
+            <button class="rd-chip" data-diff="hard" onclick="rdSelectDiff('hard')">🔥 HARD</button>
+            <button class="rd-chip" data-diff="mixed" onclick="rdSelectDiff('mixed')">🎲 MIXED</button>
+        </div>
+        <div class="chart-card" style="margin-top:14px;">
+            <div class="settings-hint" style="margin:0;">
+                8 riddles per run. Faster answers earn a time bonus, every hint costs 25% of that riddle's points, each wrong guess costs 10%, and consecutive solves build a streak multiplier (up to ×1.5). Skipping or timing out resets the streak.
+            </div>
+            <div id="rd-best-line" class="rd-best-line"></div>
+        </div>
+        <button class="btn full-btn" style="margin-top:14px; width:100%;" onclick="rdStartSolo()">▶ START SOLO RUN</button>
+        <button class="btn full-btn" style="margin-top:10px; width:100%; border-color:var(--warning); color:var(--warning);" onclick="rdOpenPvp()">🌐 PVP RIDDLE DUEL — CONNECT TO A FRIEND</button>
+        <div class="settings-hint" style="margin-top:10px;">PvP: both players see the same riddle. First correct answer wins the round. Each player gets one ⚡ Static Interference to block the other's input for 4 seconds.</div>
+    </div>
+
+    <!-- Play -->
+    <div id="rd-play" style="display:none;">
+        <div class="rd-hud">
+            <div><div class="rd-hud-label" id="rd-round-label">ROUND 1 / 8</div></div>
+            <div class="rd-hud-stats">
+                <span>⭐ <b id="rd-score">0</b></span>
+                <span id="rd-streak-wrap">🔥 <b id="rd-streak">0</b></span>
+            </div>
+        </div>
+        <div id="rd-versus" class="rd-versus" style="display:none;">
+            <div class="rd-versus-side"><span class="rd-versus-name">YOU</span><span class="rd-versus-wins" id="rd-my-wins">0</span></div>
+            <div class="rd-versus-vs">VS</div>
+            <div class="rd-versus-side"><span class="rd-versus-name">OPPONENT</span><span class="rd-versus-wins" id="rd-opp-wins">0</span></div>
+        </div>
+        <div class="rd-timer-track"><div id="rd-timer-bar" class="rd-timer-fill"></div></div>
+        <div class="rd-timer-text" id="rd-timer-text">45s</div>
+
+        <div class="chart-card rd-card">
+            <div class="rd-card-top">
+                <span id="rd-diff-tag" class="rd-diff-tag easy">EASY</span>
+                <span id="rd-points-tag" class="rd-points-tag">+10 pts</span>
+            </div>
+            <p id="rd-riddle-text" class="rd-riddle-text"></p>
+            <div id="rd-hint-box" class="rd-hint-box" style="display:none;"></div>
+            <input type="text" id="rd-answer-input" placeholder="Type your answer..." autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')rdSubmit();">
+            <div id="rd-feedback" class="rd-feedback"></div>
+            <div class="rd-action-row">
+                <button id="rd-submit-btn" class="btn" onclick="rdSubmit()">SUBMIT</button>
+                <button id="rd-hint-btn" class="btn" onclick="rdUseHint()">💡 HINT</button>
+                <button id="rd-skip-btn" class="btn" onclick="rdSkip()">SKIP ▸</button>
+            </div>
+            <button id="rd-static-btn" class="btn" style="display:none; width:100%; margin-top:10px; border-color:var(--danger); color:var(--danger);" onclick="rdFireStatic()">⚡ STATIC INTERFERENCE (1 use)</button>
+        </div>
+        <button class="btn" style="width:100%; margin-top:10px; opacity:0.65;" onclick="rdQuit()">← QUIT RUN</button>
+    </div>
+
+    <!-- Result -->
+    <div id="rd-result" style="display:none;">
+        <div id="rd-result-banner" class="rd-result-banner"></div>
+        <div id="rd-result-stats" class="arcade-stat-row" style="margin-top:14px;"></div>
+        <div id="rd-review-list" style="margin-top:14px;"></div>
+        <div id="rd-result-actions" class="rd-action-row" style="margin-top:14px;"></div>
+    </div>
+</section>
+
+<!-- ================= QUIZ DUEL (own window) ================= -->
+<section id="page-duel" class="app-page">
+    <div class="page-header-row">
+        <div>
+            <h1 class="page-title">⚔️ Quiz Duel</h1>
+            <p class="page-subtitle">Answer right to strike. Answer wrong and you take the hit.</p>
+        </div>
+        <button class="btn arcade-back-btn" onclick="navigateTo('arcade')">← ARCADE</button>
+    </div>
+
+    <!-- Setup -->
+    <div id="duel-setup">
+        <div class="section-label">BATTLE TOPIC</div>
+        <input type="text" id="duel-topic-input" placeholder="e.g. Science, World History, JavaScript..." autocomplete="off">
+        <div id="duel-topic-chips" class="rd-chip-row" style="margin-top:10px;">
+            <button class="rd-chip" onclick="duelPickTopic('Science')">🔬 Science</button>
+            <button class="rd-chip" onclick="duelPickTopic('History')">🏛️ History</button>
+            <button class="rd-chip" onclick="duelPickTopic('Technology')">💻 Tech</button>
+            <button class="rd-chip" onclick="duelPickTopic('General Knowledge')">🌏 General</button>
+        </div>
+
+        <div class="section-label">BOT DIFFICULTY</div>
+        <div id="duel-bot-chips" class="rd-chip-row">
+            <button class="rd-chip" data-level="easy" onclick="duelSelectBot('easy')">😌 ROOKIE</button>
+            <button class="rd-chip active" data-level="normal" onclick="duelSelectBot('normal')">🤖 NORMAL</button>
+            <button class="rd-chip" data-level="hard" onclick="duelSelectBot('hard')">☠️ NIGHTMARE</button>
+        </div>
+
+        <button class="btn full-btn" style="margin-top:18px; width:100%;" onclick="duelStartBot()">▶ FIGHT THE BOT</button>
+        <button class="btn full-btn" style="margin-top:10px; width:100%; border-color:var(--warning); color:var(--warning);" onclick="duelOpenPvp()">🌐 PVP — CONNECT TO A FRIEND</button>
+        <div id="duel-setup-status" class="rd-feedback" style="margin-top:12px;"></div>
+        <div class="settings-hint">8 questions · 20 seconds each · 20 damage per hit. Questions come from the AI (add your key in Settings); if it's unavailable the duel falls back to built-in questions so you can always play.</div>
+    </div>
+
+    <!-- Arena -->
+    <div id="duel-arena" style="display:none;">
+        <div class="duel-hp-row">
+            <div class="duel-hp-block">
+                <div class="duel-hp-label">YOU · <span id="duel-my-hp-num">100</span> HP</div>
+                <div class="duel-hp-track"><div id="duel-my-hp-fill" class="duel-hp-fill mine" style="width:100%;"></div></div>
+            </div>
+            <div class="duel-hp-block">
+                <div class="duel-hp-label"><span id="duel-opp-label">OPPONENT</span> · <span id="duel-opp-hp-num">100</span> HP</div>
+                <div class="duel-hp-track"><div id="duel-opp-hp-fill" class="duel-hp-fill theirs" style="width:100%;"></div></div>
+            </div>
+        </div>
+        <div class="duel-meta-row">
+            <span id="duel-question-num"></span>
+            <span id="duel-opp-progress"></span>
+            <span id="duel-timer-text"></span>
+        </div>
+        <div class="chart-card">
+            <p id="duel-question-text" style="font-weight:700; margin:0 0 14px; line-height:1.5;"></p>
+            <div id="duel-options"></div>
+            <div id="duel-feedback" class="rd-feedback"></div>
+        </div>
+        <div id="duel-result-banner" class="rd-result-banner" style="display:none; margin-top:14px;"></div>
+        <div id="duel-result-actions" class="rd-action-row" style="margin-top:14px;"></div>
+        <button id="duel-quit-btn" class="btn" style="width:100%; margin-top:10px; opacity:0.65;" onclick="duelQuit()">← LEAVE DUEL</button>
+    </div>
+</section>
+        </div>
+    </div>
+</div>
+
+<div id="quiz-focus-overlay">
+    <div class="quiz-container" id="quiz-focus-card">
+<div id="diff-menu" class="screen-panel" style="display:none;">
+        <h2 id="diff-title" style="margin-bottom: 25px; color: var(--primary); letter-spacing: 2px;"></h2>
+        
+        <div id="qty-selector-label" style="margin-bottom: 10px; font-size: 0.7rem; letter-spacing: 1px; opacity: 0.8;">SET QUANTITY</div>
+        <div id="qty-selector-grid" class="grid-menu" style="margin-bottom: 20px; grid-template-columns: repeat(3, 1fr);">
+            <button class="btn q-btn" onclick="setQCount(5, this)">5</button>
+            <button class="btn q-btn selected" id="default-q" onclick="setQCount(10, this)" style="border-color: var(--primary);">10</button>
+            <button class="btn q-btn" onclick="setQCount(20, this)">20</button>
+        </div>
+        <div id="mega-qty-badge" style="display:none; margin-bottom: 20px; background: rgba(0,242,255,0.08); border: 1px solid var(--primary); border-radius: 12px; padding: 12px; font-size: 0.75rem; font-weight: 800; color: var(--primary); letter-spacing: 0.5px;">
+            🧩 100 QUESTIONS · MEGA MODE
+        </div>
+
+        <div style="margin-bottom: 10px; font-size: 0.7rem; letter-spacing: 1px; opacity: 0.8;">SELECT DIFFICULTY</div>
+        <div class="grid-menu" id="diff-buttons"></div>
+        <button class="btn full-btn" onclick="backToHomeFromDiff()" style="margin-top: 25px; opacity: 0.6;">← ABORT</button>
+    </div>
+
+<div id="quiz-content" class="screen-panel" style="display:none;">
+        <div style="font-size: 0.7rem; opacity: 0.5; margin-bottom: 15px;">SECTOR: <span id="gameplay-topic-name" style="color: var(--primary); font-weight: bold;"></span></div>
+       <div id="progress-container" style="width: 100%; height: 2px; background: rgba(255,255,255,0.1); margin-bottom: 10px;">
+            <div id="progress-fill" style="width: 0%; height: 100%; background: var(--primary); transition: background 0.5s ease, width 0.3s ease; box-shadow: 0 0 10px var(--primary);"></div>
+        </div>
+        <div id="timer-container"><div id="timer-bar" style="height: 100%; width: 100%; background: var(--danger); transition: width 30s linear;"></div></div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 6px;">
+            <div id="timer-text">TIME: 30s</div>
+            <button id="voice-mode-btn" class="ui-btn" style="padding: 4px 8px; font-size: 0.6rem;" onclick="toggleVoiceMode()">🎙️ VOICE: OFF</button>
+            <button id="tts-btn" class="ui-btn" style="padding: 4px 8px; font-size: 0.6rem; border-color: var(--success); color: var(--success);" onclick="readQuestionAloud()">🗣️ READ ALOUD</button>
+        </div>
+        <div id="voice-listening-indicator" class="voice-listening-indicator" style="display:none;">
+            <span class="voice-listening-dot"></span> Listening for your answer...
+        </div>
+        
+        <div id="quiz-image-container" class="media-preview-box" style="display:none;">
+            <img id="quiz-image-preview" class="media-preview-img" alt="Reference Material">
+        </div>
+        
+        <div id="question" class="glitch-text-sub" style="font-weight: 600; margin-bottom: 25px; line-height: 1.5; font-size: 1.1rem;"></div>
+        <div id="options"></div>
+        <div id="powerup-action-bar" class="powerup-action-bar"></div>
+        <div id="hint-display" style="color: var(--warning); margin-top: 10px; font-weight: bold; font-size: 0.8rem;"></div>
+        <button id="ai-tutor-btn" class="btn full-btn" style="display:none; margin-top:10px; border-color: var(--primary); color: var(--primary); font-size: 0.65rem;">🧑‍🏫 ASK SENPAI TO EXPLAIN</button>
+        <div id="ai-insight" style="font-size: 0.85rem; color: var(--primary); margin-top: 15px; opacity: 0; font-style: italic; background: rgba(0,242,255,0.1); padding: 10px; border-radius: 8px; border-left: 3px solid var(--primary); transition: border-color 0.5s ease, background 0.5s ease;"></div>
+        
+        <div class="grid-menu" style="margin-top: 30px;">
+            <button id="hint-btn-el" class="btn" style="color: var(--warning);" onclick="getHint()">💡 HINT (3)</button>
+            <button class="btn" style="color: var(--danger);" onclick="forceQuit()">⚠ TERMINATE</button>
+        </div>
+    </div>
+
+<div id="result-screen" class="screen-panel" style="display:none;">
+        <h2 style="letter-spacing: 3px; color: var(--success);">LINK SUCCESSFUL</h2>
+        <h1 id="score-text" style="font-size: 4rem; color: var(--primary); margin: 20px 0; text-shadow: 0 0 20px var(--primary);">0/10</h1>
+
+        <div id="revision-set-banner" class="revision-set-banner" style="display:none;">
+            <span class="revision-set-icon">🎯</span>
+            <div class="revision-set-text">
+                <div class="revision-set-title">Weak spots detected</div>
+                <div class="revision-set-sub">Take a quick 3-question revision now?</div>
+            </div>
+            <button class="btn" style="font-size:0.6rem; background:var(--warning); color:#000; border:none; flex-shrink:0;" onclick="startTargetedRevisionQuiz()">GO</button>
+        </div>
+
+        <div class="grid-menu">
+            <button class="btn full-btn" onclick="showReview()">🔍 REVIEW ANSWERS</button>
+            <button class="btn" onclick="exportQuizSummaryPdf()" style="border-color: var(--danger); color: var(--danger); font-size:0.65rem;">📄 EXPORT PDF</button>
+            <button class="btn" onclick="restartTopic()">RE-SYNC</button>
+            <button class="btn full-btn" onclick="backToHome()" style="opacity: 0.6;">HOME</button>
+        </div>
+    </div>
+
+<div id="review-screen" class="screen-panel" style="display:none; max-height: 60vh; overflow-y: auto; text-align: left; scrollbar-width: thin;">
+        <h2 style="color: var(--primary); text-align: center; margin-bottom: 20px;">POST-SESSION REVIEW</h2>
+        <div id="review-list"></div>
+        <button class="btn full-btn" onclick="document.getElementById('review-screen').style.display='none'; document.getElementById('result-screen').style.display='block';" style="margin-top: 20px;">← BACK TO RESULTS</button>
+    </div>
+    </div>
+</div>
+
+<div id="drawer-backdrop" onclick="closeDrawers()"></div>
+
+<div id="profile-modal" class="custom-modal">
+    <button class="drawer-close-btn" onclick="closeDrawers()" aria-label="Close">✕</button>
+    <div class="modal-tabs">
+        <button class="tab-btn active" onclick="switchTab('identity', this)">🪪 ID</button>
+        <button class="tab-btn" onclick="switchTab('library', this)">📚 LIB</button>
+        <button class="tab-btn" onclick="switchTab('notepad', this)">📒 NOTES</button>
+        <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ SET</button>
+    </div>
+
+    <div id="tab-identity" class="tab-content active">
+        <div class="modal-header" style="padding:0; border:none;">
+            <span>NEURAL IDENTITY</span>
+            <span id="edit-toggle" onclick="toggleEditMode()" style="cursor: pointer; font-size: 1rem; opacity: 0.7;">⚙️</span>
+        </div>
+        <div id="profile-display-area" style="margin-top: 15px;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <img id="user-pfp" src="https://api.dicebear.com/7.x/bottts/svg?seed=Guest" style="width: 85px; height: 85px; border-radius: 50%; border: 3px solid var(--primary); object-fit: cover; background: #000; margin-bottom: 10px; box-shadow: 0 0 15px var(--primary);">
+                <div id="display-name" style="font-size: 1.1rem; font-weight: 800; color: var(--success); letter-spacing: 1px; text-transform: uppercase;">GUEST_01</div>
+                <div style="font-size: 0.6rem; opacity: 0.5; margin-top: 5px;">RANK: <span id="display-rank">LEARNER</span></div>
+            </div>
+        </div>
+
+        <div class="profile-level-block">
+            <div class="profile-level-row">
+                <span class="level-pill">LV <span class="level-badge-num">1</span></span>
+                <span class="exp-bar-label">0 / 100 XP</span>
+            </div>
+            <div class="exp-bar-track"><div class="exp-bar-fill" style="width:0%;"></div></div>
+        </div>
+
+        <div id="profile-edit-area" style="display: none; margin-top: 15px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 12px; border: 1px solid rgba(0,242,255,0.2);">
+            <button class="btn" style="font-size: 0.6rem; padding: 5px 10px; margin-bottom: 10px; width: 100%;" onclick="document.getElementById('pfp-input').click()">UPLOAD IMAGE</button>
+            <input type="file" id="pfp-input" accept="image/*" style="display: none;" onchange="updateProfilePic(event)">
+            <input type="text" id="user-name-input" placeholder="NEW IDENTITY..." style="background: rgba(255,255,255,0.05); border: 1px solid var(--primary); color: white; width: 100%; text-align: center; padding: 8px; border-radius: 8px; font-size: 0.8rem; outline: none; box-sizing: border-box;">
+            <button class="btn" style="width: 100%; margin-top: 10px; font-size: 0.6rem; background: var(--success); color: #000;" onclick="saveChanges()">APPLY CHANGES</button>
+        </div>
+
+        <hr style="border: 0; border-top: 1px dashed rgba(255,255,255,0.1); margin: 15px 0;">
+        <div class="stat-line">TOTAL SESSIONS: <span id="stat-links">0</span></div>
+        <div class="stat-line">AVG ACCURACY: <span id="stat-acc">0%</span></div>
+        <div class="stat-line">DATA POINTS: <span id="stat-correct">0</span></div>
+        <div id="stat-weakness" style="font-size: 0.65rem; color: var(--warning); margin-top: 5px; opacity: 0.8; text-align: right;"></div>
+        <hr style="border: 0; border-top: 1px dashed rgba(255,255,255,0.1); margin: 12px 0;">
+        <div class="stat-line" style="color: var(--primary);">RANK : <span id="stat-rank" style="color: var(--primary); font-size: 0.65rem;">LEARNER</span></div>
+        <hr style="border: 0; border-top: 1px dashed rgba(255,255,255,0.1); margin: 12px 0;">
+        <div class="stat-line">STATUS : <span style="color: var(--primary);">ACTIVE</span></div>
+
+        <button id="music-ctrl" class="btn" style="width: 100%; margin-top: 10px; border-color: var(--primary); font-size: 0.7rem;" onclick="toggleMusic()">🔊 MUSIC: ON</button>
+    </div>
+
+    <div id="tab-library" class="tab-content">
+        <div class="modal-header" style="padding:0; border:none;">CORE ARCHIVES</div>
+        <div id="library-list" style="margin-top:15px; max-height:200px; overflow-y:auto; scrollbar-width:none;"></div>
+        <button class="btn" style="width:100%; font-size:0.6rem; margin-top:10px;" onclick="document.getElementById('lib-upload').click()">+ ADD TO LIBRARY</button>
+        <input type="file" id="lib-upload" accept="application/pdf" style="display:none;" onchange="handleLibraryUpload(event)">
+    </div>
+
+    <div id="tab-notepad" class="tab-content">
+        <div class="modal-header" style="padding:0; border:none;">NEURAL NOTES</div>
+        <textarea id="notepad-area" placeholder="Enter findings..." oninput="saveNotes()" style="margin-top:15px;"></textarea>
+    </div>
+
+    <div id="tab-settings" class="tab-content">
+        <div class="modal-header" style="padding:0; border:none;">SYSTEM SETTINGS</div>
+
+        <div class="settings-block" style="margin-top:15px;">
+            <div class="settings-block-title">Display Mode</div>
+            <div class="theme-switch">
+                <button id="theme-btn-dark" onclick="setTheme('dark')">🌙 DARK</button>
+                <button id="theme-btn-light" onclick="setTheme('light')">☀️ LIGHT</button>
+            </div>
+        </div>
+
+        <div class="settings-block">
+            <div class="settings-block-title">Accessibility & Focus</div>
+            <div class="settings-row">
+                <label for="toggle-zen-mode">🧘 Zen Mode (hide distractions during quizzes)</label>
+                <input type="checkbox" id="toggle-zen-mode" class="settings-toggle" onchange="toggleAccessibilityOption('zen_mode', this.checked)">
+            </div>
+            <div class="settings-row">
+                <label for="toggle-high-contrast">🔲 High Contrast</label>
+                <input type="checkbox" id="toggle-high-contrast" class="settings-toggle" onchange="toggleAccessibilityOption('high_contrast', this.checked)">
+            </div>
+            <div class="settings-row">
+                <label for="toggle-dyslexic-font">🔤 Dyslexic-Friendly Font</label>
+                <input type="checkbox" id="toggle-dyslexic-font" class="settings-toggle" onchange="toggleAccessibilityOption('dyslexic_font', this.checked)">
+            </div>
+        </div>
+
+        <div class="settings-block">
+            <div class="settings-block-title">AI Connection Keys</div>
+            <label style="font-size:0.55rem; opacity:0.6;">GEMINI API KEY (required for Senpai + multimodal)</label>
+            <input type="password" id="key-gemini" class="settings-key-input" placeholder="AIza..." style="margin-top:4px;">
+            <div class="key-status" id="key-status-gemini"></div>
+            <label style="font-size:0.55rem; opacity:0.6;">GROQ API KEY (optional, text quiz speed boost)</label>
+            <input type="password" id="key-groq" class="settings-key-input" placeholder="gsk_...">
+            <div class="key-status" id="key-status-groq"></div>
+            <label style="font-size:0.55rem; opacity:0.6;">RAPIDAPI KEY (optional, YouTube transcript)</label>
+            <input type="password" id="key-rapidapi" class="settings-key-input" placeholder="optional">
+            <div class="key-status" id="key-status-rapidapi"></div>
+            <label class="key-show-row"><input type="checkbox" onchange="['key-gemini','key-groq','key-rapidapi'].forEach(function(i){document.getElementById(i).type=this.checked?'text':'password'}.bind(this))"> Show keys</label>
+            <button class="btn" style="width:100%; font-size:0.6rem; background:var(--success); color:#000;" onclick="saveApiKeys()">SAVE KEYS</button>
+            <div class="settings-hint">Keys are stored only in this browser's local storage — never uploaded anywhere. Get a free Gemini key at <b>aistudio.google.com/apikey</b> and a free Groq key at <b>console.groq.com/keys</b>.</div>
+        </div>
+
+        <div class="settings-block">
+            <div class="settings-block-title">Profile</div>
+            <div id="settings-profile-line" style="font-size:0.65rem; margin-bottom:8px; opacity:0.8;"></div>
+            <button class="btn" style="width:100%; font-size:0.6rem; color:var(--danger); border-color:var(--danger);" onclick="logoutUser()">LOG OUT</button>
+        </div>
+
+        <div class="settings-block">
+            <div class="settings-block-title">App</div>
+            <button class="btn" id="install-app-btn" style="width:100%; font-size:0.6rem; display:none;" onclick="triggerInstall()">📲 INSTALL AS APP</button>
+            <button class="btn" style="width:100%; font-size:0.6rem; margin-top:8px;" onclick="location.reload()">RE-BOOT SYSTEM</button>
+        </div>
+    </div>
+</div>
+
+<!-- SENPAI AI CHAT BUDDY -->
+<!-- ================= SHARED PvP CONNECT OVERLAY (floats above any arcade page) ================= -->
+<div id="pvp-connect-overlay" onclick="if(event.target===this)pvpCancelConnect()">
+    <div id="pvp-connect-card">
+        <h2 id="pvp-connect-title" style="color:var(--warning); margin-top:0;">Connect</h2>
+        <div class="settings-hint" style="margin-bottom:14px;">No account or server needed. One player hosts and sends a short code to the other (text, Discord, in person). The other pastes it in and sends back a reply code. That's the whole handshake.</div>
+
+        <div id="pvp-connect-choice" style="display:flex; gap:10px;">
+            <button class="btn full-btn" style="flex:1;" onclick="pvpChooseHost()">HOST GAME</button>
+            <button class="btn full-btn" style="flex:1;" onclick="pvpChooseJoin()">JOIN GAME</button>
+        </div>
+
+        <div id="pvp-host-panel" style="display:none;">
+            <div class="settings-hint">Send this code to the other player:</div>
+            <textarea id="pvp-host-code" class="settings-key-input" style="height:80px; font-size:0.55rem;" readonly onclick="pvpCopyCode('pvp-host-code')"></textarea>
+            <button class="btn full-btn" style="font-size:0.6rem; margin-bottom:14px; width:100%;" onclick="pvpCopyCode('pvp-host-code')">📋 COPY CODE</button>
+            <div class="settings-hint">Once they send back their reply code, paste it here:</div>
+            <textarea id="pvp-host-reply-input" class="settings-key-input" style="height:80px; font-size:0.55rem;" placeholder="Paste their reply code..."></textarea>
+            <button class="btn full-btn" style="width:100%;" onclick="pvpSubmitGuestReply()">CONNECT</button>
+        </div>
+
+        <div id="pvp-join-panel" style="display:none;">
+            <div class="settings-hint">Paste the host's code here:</div>
+            <textarea id="pvp-join-code-input" class="settings-key-input" style="height:80px; font-size:0.55rem;" placeholder="Paste the host's code..."></textarea>
+            <button class="btn full-btn" style="width:100%;" onclick="pvpSubmitHostCode()">GENERATE REPLY CODE</button>
+            <div id="pvp-join-reply-wrap" style="display:none; margin-top:14px;">
+                <div class="settings-hint">Send this reply code back to the host:</div>
+                <textarea id="pvp-join-reply-output" class="settings-key-input" style="height:80px; font-size:0.55rem;" readonly onclick="pvpCopyCode('pvp-join-reply-output')"></textarea>
+                <button class="btn full-btn" style="font-size:0.6rem; width:100%;" onclick="pvpCopyCode('pvp-join-reply-output')">📋 COPY REPLY CODE</button>
+            </div>
+        </div>
+
+        <div id="pvp-connect-status" style="text-align:center; font-size:0.7rem; color:var(--primary); margin-top:14px; min-height:16px;"></div>
+        <button class="btn full-btn" style="margin-top:14px; opacity:0.7; width:100%;" onclick="pvpCancelConnect()">← CANCEL</button>
+    </div>
+</div>
+
+<button id="senpai-fab" onclick="toggleSenpai()" aria-label="Chat with Senpai" style="display:none;">
+    <img src="icons/senpai-avatar.svg" class="senpai-avatar-img" alt=""><span class="ping"></span>
+</button>
+<div id="senpai-panel">
+    <div id="senpai-header">
+        <div class="avatar"><img src="icons/senpai-avatar.svg" class="senpai-avatar-img" alt=""></div>
+        <div class="info">
+            <div class="name">SENPAI</div>
+            <div class="status" id="senpai-status">your study buddy</div>
+        </div>
+        <button class="senpai-tool-btn" id="senpai-voice-out-btn" onclick="toggleSenpaiVoiceOut()" aria-label="Toggle voice replies" title="Toggle voice replies">🔇</button>
+        <div class="close-btn" onclick="toggleSenpai()">✖</div>
+    </div>
+    <div id="senpai-messages"></div>
+    <input type="file" id="senpai-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleSenpaiCameraCapture(event)">
+    <div id="senpai-input-row">
+        <button id="senpai-camera-btn" onclick="document.getElementById('senpai-camera-input').click()" aria-label="Scan with camera" title="Scan with camera">📷</button>
+        <button id="senpai-mic-btn" onclick="toggleSenpaiVoiceInput()" aria-label="Voice input" title="Voice input">🎤</button>
+        <input type="text" id="senpai-input" placeholder="Ask senpai anything..." onkeydown="if(event.key==='Enter')sendSenpaiMessage();">
+        <button id="senpai-send" onclick="sendSenpaiMessage()">➤</button>
+    </div>
+</div>
+
+<div id="toast" class="toast">
+    <div class="toast-icon">🏆</div>
+    <div class="toast-text">
+        <div class="t1">ACHIEVEMENT UNLOCKED</div>
+        <div class="t2" id="toast-title">-</div>
+    </div>
+</div>
+
+<div id="exp-toast" class="exp-toast">
+    <span class="exp-toast-icon">⚡</span>
+    <div class="exp-toast-text">
+        <span class="exp-toast-amount" id="exp-toast-amount">+0 XP</span>
+        <span class="exp-toast-label" id="exp-toast-label">-</span>
+    </div>
+</div>
+
+<div id="levelup-overlay">
+    <div class="levelup-card">
+        <div class="levelup-burst"></div>
+        <div class="levelup-badge">
+            <span class="levelup-badge-glow"></span>
+            <span class="levelup-star">⭐</span>
+        </div>
+        <div class="levelup-title">LEVEL UP!</div>
+        <div class="levelup-sub">You reached</div>
+        <div class="levelup-number" id="levelup-number">2</div>
+        <button class="btn full-btn" style="background:var(--primary); color:#000; border:none; margin-top:10px;" onclick="closeLevelUp()">AWESOME!</button>
+    </div>
+</div>
+
+<div id="install-banner">
+    <span class="txt">📲 Install AI Quiz Pro as an app for quick access</span>
+    <button class="btn" style="font-size:0.6rem; padding:8px 12px;" onclick="triggerInstall()">INSTALL</button>
+    <button class="btn" style="font-size:0.6rem; padding:8px 12px; opacity:0.6;" onclick="dismissInstallBanner()">✖</button>
+</div>
+
+<script src="js/nav.js"></script>
+<script src="js/app.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/features.js"></script>
+<script src="js/gamification.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/study.js"></script>
+<script src="js/p2p.js"></script>
+<script src="js/riddles.js"></script>
+<script src="js/arcade.js"></script>
+<script src="js/quizduel.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "ai-quiz-pro-desktop",
+  "version": "1.0.0",
+  "description": "AI Quiz Pro desktop app (Windows / macOS / Linux)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.aiquizpro.hybrid",
+    "productName": "AI Quiz Pro",
+    "files": [
+      "main.js",
+      "../AI_QUIZ.html",
+      "../css/**",
+      "../js/**",
+      "../icons/**",
+      "../manifest.json"
+    ],
+    "win": { "target": "nsis", "icon": "../icons/icon-512.png" },
+    "mac": { "target": "dmg", "icon": "../icons/icon-512.png" },
+    "linux": { "target": "AppImage", "icon": "../icons/icon-512.png" }
+  }
+}
