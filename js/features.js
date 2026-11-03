@@ -109,6 +109,8 @@ function prefillApiKeyInputs() {
     if (g) g.value = getGeminiKey();
     if (q) q.value = getGroqKey();
     if (r) r.value = getRapidApiKey();
+    const fa = document.getElementById('free-ai-toggle');
+    if (fa) { try { fa.checked = localStorage.getItem('free_ai_off') !== '1'; } catch (e) {} }
     updateKeyStatus();
 }
 window.saveApiKeys = saveApiKeys;

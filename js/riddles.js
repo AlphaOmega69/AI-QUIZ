@@ -15,6 +15,11 @@
  *          agree. Each player has one ⚡ Static Interference (blocks the other
  *          player's input for 4s). Hints are disabled in PvP to keep it fair.
  *
+ * AI RIDDLES: by default every run asks the AI (your Groq/Gemini key, else the free keyless
+ * AI) to write FRESH riddles, so you never see the same set twice. If the AI is unavailable
+ * the run silently falls back to the built-in bank. In PvP the host writes the riddles and
+ * sends the full text to the guest, so both screens always match.
+ *
  * Lifecycle: riddlesEnter() / riddlesCanLeave() / riddlesLeave() are called by
  * nav.js, so leaving the window always stops timers and detaches P2P listeners.
  */
@@ -119,7 +124,9 @@
         return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
     function pretty(ans) { return ans.length <= 2 ? ans.toUpperCase() : ans.charAt(0).toUpperCase() + ans.slice(1); }
-    function byId(id) { return BANK.find(r => r.id === id); }
+    const DYN = {}; // AI-written riddles registered for this session (id -> riddle)
+    function byId(id) { return BANK.find(r => r.id === id) || DYN[id]; }
+    function isBankId(id) { return BANK.some(r => r.id === id); }
     function $(id) { return document.getElementById(id); }
     function num(key) { return parseInt(localStorage.getItem(key) || '0', 10) || 0; }
     function bump(key, by) { localStorage.setItem(key, String(num(key) + (by || 1))); }
@@ -134,6 +141,7 @@
     // Prefer riddles the player hasn't seen recently so repeat runs feel fresh.
     function getSeen() { try { return JSON.parse(localStorage.getItem('riddle_seen') || '[]'); } catch (e) { return []; } }
     function markSeen(ids) {
+        ids = ids.filter(isBankId);
         const seen = getSeen().filter(x => ids.indexOf(x) === -1).concat(ids);
         try { localStorage.setItem('riddle_seen', JSON.stringify(seen.slice(-30))); } catch (e) {}
     }
@@ -152,6 +160,83 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* AI riddles                                                         */
+    /* ------------------------------------------------------------------ */
+    const AI_CAP_MS = 32000;
+    function aiEnabled() { try { return localStorage.getItem('riddle_source') !== 'bank'; } catch (e) { return true; } }
+    function recentAiAnswers() { try { return JSON.parse(localStorage.getItem('riddle_ai_recent') || '[]'); } catch (e) { return []; } }
+    function rememberAi(list) {
+        const all = recentAiAnswers().concat(list.map(r => r.a[0]));
+        try { localStorage.setItem('riddle_ai_recent', JSON.stringify(all.slice(-60))); } catch (e) {}
+    }
+    function withCap(promise, ms) {
+        let t;
+        const cap = new Promise((_, rej) => { t = setTimeout(() => rej(new Error('AI timed out')), ms); });
+        return Promise.race([promise, cap]).finally(() => clearTimeout(t));
+    }
+    // Accepts only well-formed riddles; used for AI output AND for riddles a PvP host sends us.
+    function cleanRiddle(x, fallbackDiff, keepId) {
+        if (!x || typeof x !== 'object') return null;
+        const q = String(x.q || x.riddle || x.question || '').trim();
+        let ans = x.a || x.answers || x.answer;
+        if (typeof ans === 'string') ans = [ans];
+        if (!Array.isArray(ans)) return null;
+        ans = Array.from(new Set(ans.map(a => String(a).toLowerCase().trim().replace(/[.!?]+$/, '')).filter(a => a && a.length <= 40))).slice(0, 6);
+        if (q.length < 12 || q.length > 300 || !ans.length) return null;
+        // reject riddles that give the answer away in the question itself
+        if (ans[0].length >= 4 && norm(q).indexOf(norm(ans[0])) !== -1) return null;
+        const d = DIFF[x.d] ? x.d : (DIFF[String(x.difficulty || '').toLowerCase()] ? String(x.difficulty).toLowerCase() : (fallbackDiff && DIFF[fallbackDiff] ? fallbackDiff : 'medium'));
+        const h = String(x.h || x.hint || 'Think about the wording.').trim().slice(0, 140);
+        const id = keepId && /^ai_[a-z0-9]{4,24}$/.test(String(x.id || '')) ? x.id : 'ai_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        return { id, d, q, a: ans, h, ai: true };
+    }
+    async function generateAiRiddles(diff, n) {
+        try {
+            if (typeof askFreeAI !== 'function') throw new Error('AI engine unavailable');
+            const want = n + 3; // ask for a few extra: some get rejected by the validator
+            const spec = diff === 'mixed'
+                ? `a mix: about 3/8 easy, 3/8 medium and 2/8 hard`
+                : `all of "${diff}" difficulty`;
+            const avoid = recentAiAnswers().slice(-25).join(', ');
+            const prompt = `Invent ${want} NEW, ORIGINAL riddles for a fast-paced riddle game (${spec}). Do NOT use famous classics (no "what has keys but can't open locks", "echo", "footsteps", "candle", etc.). ` +
+                `easy = everyday objects with a playful twist; medium = wordplay or a clever description; hard = lateral thinking, but still fair. ` +
+                `Every riddle must have ONE clear answer that is a common word or short phrase, and the riddle text must NOT contain the answer. ` +
+                `Give 1-4 accepted answers (lowercase; include obvious synonyms and the singular form). The hint must nudge without revealing the answer. ` +
+                (avoid ? `Avoid these answers (used recently): ${avoid}. ` : '') +
+                `Return JSON strictly: {"riddles":[{"riddle":"...","answers":["main answer","synonym"],"hint":"...","difficulty":"easy|medium|hard"}]}`;
+            const ai = await withCap(askFreeAI(prompt, { timeoutMs: 14000 }), AI_CAP_MS);
+            const parsed = extractJson(ai.text);
+            const bankQs = BANK.map(r => r.q.toLowerCase());
+            const seenA = new Set(recentAiAnswers());
+            const out = [];
+            (parsed.riddles || []).forEach(x => {
+                const c = cleanRiddle(x, diff === 'mixed' ? 'medium' : diff);
+                if (!c || bankQs.indexOf(c.q.toLowerCase()) !== -1 || seenA.has(c.a[0]) || out.some(o => o.a[0] === c.a[0])) return;
+                if (diff !== 'mixed') c.d = diff; // single-difficulty runs keep one difficulty so the timer/points match the chip
+                out.push(c);
+            });
+            if (out.length < Math.min(3, n)) throw new Error('AI returned too few usable riddles');
+            const picked = out.slice(0, n);
+            rememberAi(picked);
+            return { riddles: picked, via: ai.via };
+        } catch (e) {
+            console.warn('Riddle Rush: using built-in riddles —', e && e.message);
+            return { riddles: [], reason: (e && e.message) || 'unknown' };
+        }
+    }
+    // A set of riddle ids for a run: AI riddles first, topped up from the built-in bank.
+    async function buildSet(diff, n) {
+        const bank = pickIds(diff, n);
+        if (!aiEnabled()) return { ids: bank, ai: 0 };
+        const gen = await generateAiRiddles(diff, n);
+        if (!gen.riddles.length) return { ids: bank, ai: 0, note: `ℹ️ AI unavailable (${gen.reason}) — using built-in riddles.` };
+        const aiIds = gen.riddles.map(r => { DYN[r.id] = r; return r.id; });
+        const ids = aiIds.concat(bank.filter(id => aiIds.indexOf(id) === -1)).slice(0, n);
+        return { ids, ai: aiIds.length, note: `✨ ${aiIds.length} fresh riddle${aiIds.length > 1 ? 's' : ''} written by AI (${gen.via}).` };
+    }
+    let prefetchRd = null; // { diff, promise } — the PvP host starts writing riddles while the friend connects
+
+    /* ------------------------------------------------------------------ */
     /* State                                                              */
     /* ------------------------------------------------------------------ */
     let selectedDiff = 'medium';
@@ -164,7 +249,7 @@
             hints: 0, wrong: 0, locked: false, deadline: 0, limit: 45, timerId: null, advanceId: null,
             review: [],
             // pvp
-            isHost: false, decided: {}, applied: {}, myWins: 0, oppWins: 0, staticUsed: false, blockedUntil: 0, peerLost: false
+            isHost: false, decided: {}, applied: {}, myWins: 0, oppWins: 0, staticUsed: false, blockedUntil: 0, peerLost: false, generating: false
         };
     }
     function clearTimers() {
@@ -184,11 +269,18 @@
     }
     function renderSetup() {
         document.querySelectorAll('#rd-diff-chips .rd-chip').forEach(b => b.classList.toggle('active', b.dataset.diff === selectedDiff));
+        document.querySelectorAll('#rd-source-chips .rd-chip').forEach(b => b.classList.toggle('active', b.dataset.source === (aiEnabled() ? 'ai' : 'bank')));
         const best = num('riddle_best_score');
         $('rd-best-line').textContent = best
             ? `🏆 Best run: ${best} pts · Riddles solved: ${num('riddles_solved')} · Best streak: ${num('riddle_best_streak')}`
             : 'No runs yet — your best score will show up here.';
     }
+
+    window.rdSelectSource = function (src) {
+        try { localStorage.setItem('riddle_source', src === 'bank' ? 'bank' : 'ai'); } catch (e) {}
+        sfx('snd-click');
+        document.querySelectorAll('#rd-source-chips .rd-chip').forEach(b => b.classList.toggle('active', b.dataset.source === (aiEnabled() ? 'ai' : 'bank')));
+    };
 
     window.rdSelectDiff = function (d) {
         selectedDiff = d; sfx('snd-click');
@@ -291,15 +383,43 @@
     /* ------------------------------------------------------------------ */
     /* SOLO                                                               */
     /* ------------------------------------------------------------------ */
-    window.rdStartSolo = function () {
+    // Shows the play screen with a "preparing" message while riddles are being written.
+    function showPreparing(text) {
+        show('play');
+        $('rd-round-label').textContent = 'PREPARING…';
+        $('rd-riddle-text').textContent = text;
+        $('rd-hint-box').style.display = 'none';
+        const inp = $('rd-answer-input'); inp.value = ''; inp.disabled = true;
+        $('rd-submit-btn').disabled = true; $('rd-hint-btn').disabled = true; $('rd-skip-btn').disabled = true;
+        const bar = $('rd-timer-bar'); if (bar) bar.style.width = '0%';
+        const tt = $('rd-timer-text'); if (tt) tt.textContent = '';
+        setFeedback('', '');
+    }
+    function elapsedLabel(base, t0) { return `${base} ${Math.floor((Date.now() - t0) / 1000)}s`; }
+
+    window.rdStartSolo = async function () {
         teardown();
         rd = freshState();
         rd.active = true; rd.mode = 'solo'; rd.diff = selectedDiff;
-        rd.ids = pickIds(selectedDiff, SOLO_ROUNDS);
-        markSeen(rd.ids);
+        const mine = rd;
         sfx('snd-click');
+        let set = { ids: [], note: '' };
+        if (aiEnabled()) {
+            const t0 = Date.now();
+            $('rd-hint-btn').style.display = ''; $('rd-skip-btn').style.display = ''; $('rd-streak-wrap').style.display = ''; $('rd-versus').style.display = 'none'; $('rd-static-btn').style.display = 'none';
+            showPreparing(elapsedLabel('✨ Writing fresh riddles with AI…', t0));
+            const tick = setInterval(() => { if (rd === mine && rd.active && !rd.ids.length) $('rd-riddle-text').textContent = elapsedLabel('✨ Writing fresh riddles with AI…', t0); }, 1000);
+            set = await buildSet(selectedDiff, SOLO_ROUNDS);
+            clearInterval(tick);
+            if (rd !== mine || !rd.active) return; // player left while the AI was thinking
+        } else {
+            set = { ids: pickIds(selectedDiff, SOLO_ROUNDS) };
+        }
+        rd.ids = set.ids;
+        markSeen(rd.ids);
         show('play');
         renderRound();
+        if (set.note) setFeedback(set.note, set.ai ? 'good' : 'warn');
     };
 
     window.rdSubmit = function () {
@@ -459,6 +579,13 @@
         showPvpConnect('riddles', { diff: selectedDiff });
     };
 
+    // Called by the connect overlay the moment THIS player becomes the host: start writing riddles now.
+    window.pvpOnHosting = window.pvpOnHosting || {};
+    window.pvpOnHosting.riddles = function (opts) {
+        const diff = (opts && opts.diff) || selectedDiff;
+        prefetchRd = { diff, promise: buildSet(diff, PVP_ROUNDS) };
+    };
+
     window.pvpLaunchers = window.pvpLaunchers || {};
     window.pvpLaunchers.riddles = function (isHost, opts) {
         rd = freshState();
@@ -477,11 +604,27 @@
         if (!isHost) p2pSend({ type: 'rd-ready' });
     };
 
-    function hostBeginMatch() {
-        const ids = pickIds(rd.diff, PVP_ROUNDS);
+    async function hostBeginMatch() {
+        if (rd.generating) return;
+        rd.generating = true;
+        const mine = rd, diff = rd.diff, t0 = Date.now();
+        const label = () => elapsedLabel('✨ Writing fresh riddles with AI…', t0);
+        showPreparing(label());
+        p2pSend({ type: 'rd-status', text: 'Host is writing fresh riddles…' });
+        const tick = setInterval(() => { if (rd === mine && rd.generating) $('rd-riddle-text').textContent = label(); }, 1000);
+        // reuse the riddles the host began writing while waiting for the friend to connect
+        const job = (prefetchRd && prefetchRd.diff === diff) ? prefetchRd.promise : null;
+        prefetchRd = null;
+        const set = await (job || buildSet(diff, PVP_ROUNDS));
+        clearInterval(tick);
+        if (rd !== mine || !rd.active) return; // left / disconnected meanwhile
+        const ids = set.ids;
         markSeen(ids);
-        p2pSend({ type: 'rd-start', ids });
+        // AI riddles don't exist on the guest's side, so ship their full text along with the ids
+        const extra = ids.filter(id => !isBankId(id)).map(id => DYN[id]);
+        p2pSend({ type: 'rd-start', ids, extra });
         beginMatch(ids);
+        if (set.note) setFeedback(set.note, set.ai ? 'good' : 'warn');
     }
     function beginMatch(ids) {
         const keep = { isHost: rd.isHost, diff: rd.diff };
@@ -566,10 +709,17 @@
         if (!data || typeof data.type !== 'string') return;
         switch (data.type) {
             case 'rd-ready':
-                if (rd.isHost && !rd.ids.length) hostBeginMatch();
+                if (rd.isHost && !rd.ids.length && !rd.generating) hostBeginMatch();
+                break;
+            case 'rd-status':
+                if (!rd.isHost && typeof data.text === 'string' && (!rd.ids.length || rd.finished)) showPreparing(data.text.slice(0, 120));
                 break;
             case 'rd-start':
-                if (!rd.isHost && Array.isArray(data.ids) && data.ids.every(id => byId(id))) beginMatch(data.ids);
+                if (!rd.isHost && Array.isArray(data.ids)) {
+                    // AI-written riddles arrive as full objects; validate them like any untrusted input
+                    if (Array.isArray(data.extra)) data.extra.slice(0, 20).forEach(x => { const c = cleanRiddle(x, null, true); if (c) DYN[c.id] = c; });
+                    if (data.ids.length && data.ids.every(id => byId(id))) beginMatch(data.ids);
+                }
                 break;
             case 'rd-claim':
                 if (rd.isHost && typeof data.r === 'number') hostResolve(data.r, 'guest');

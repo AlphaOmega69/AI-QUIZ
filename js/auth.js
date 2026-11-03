@@ -43,7 +43,7 @@ function applyAuthSetupBadges() {
     const googleBtn = document.getElementById('google-login-btn');
     const fbBtn = document.getElementById('facebook-login-btn');
 
-    const googleConfigured = !!(window.AUTH_CONFIG && AUTH_CONFIG.googleClientId);
+    const googleConfigured = !!getGoogleClientId();
     const fbConfigured = !!(window.AUTH_CONFIG && AUTH_CONFIG.facebookAppId);
 
     if (googleBadge) googleBadge.style.display = googleConfigured ? 'none' : 'inline-block';
@@ -103,6 +103,9 @@ function enterMainApp() {
     if (window.updateHomeNav) updateHomeNav();
 
     applyProfileGreeting();
+
+    // Opened from a PvP invite link (?pvp=…&pw=…&g=…)? Jump straight into joining that room.
+    if (window.__pvpInvite && window.pvpHandleInvite) setTimeout(() => pvpHandleInvite(), 150);
 }
 window.enterMainApp = enterMainApp;
 
@@ -153,31 +156,129 @@ window.loginAsGuest = function() {
 /* ============================================================================
    GOOGLE LOGIN (Google Identity Services — client-side only)
    ============================================================================ */
-window.loginWithGoogle = function() {
-    if (!AUTH_CONFIG.googleClientId) { showAuthSetupNotice('Google', 'google-login-btn'); return; }
-    if (!window.google || !google.accounts || !google.accounts.id) {
-        showAuthSetupNotice('Google (still loading — try again in a second)', 'google-login-btn');
+function getGoogleClientId() {
+    let id = (window.AUTH_CONFIG && AUTH_CONFIG.googleClientId) || '';
+    if (!id) { try { id = localStorage.getItem('google_client_id') || ''; } catch (e) {} }
+    return String(id).trim();
+}
+function googleSdkReady() { return !!(window.google && google.accounts && google.accounts.oauth2); }
+
+// Inline, human-readable status under the login buttons (replaces the old generic "not set up" line).
+function showGoogleMessage(html, tone) {
+    let box = document.getElementById('google-login-msg');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'google-login-msg';
+        box.className = 'login-note';
+        box.setAttribute('role', 'alert');
+        document.getElementById('login-options').insertAdjacentElement('afterend', box);
+    }
+    box.style.color = tone === 'error' ? 'var(--danger)' : 'var(--warning)';
+    box.innerHTML = html;
+    box.style.display = html ? 'block' : 'none';
+}
+function escHtmlAuth(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// Google only works in a real browser, on a real https:// origin (or http://localhost) that is listed as an
+// "Authorized JavaScript origin" on the OAuth client. It deliberately refuses embedded WebViews
+// (code-editor previews, in-app browsers, installed wrappers) — that is Google policy, not an app bug.
+function isEmbeddedWebView() {
+    const ua = navigator.userAgent || '';
+    if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return true;
+    if (/; wv\)/.test(ua)) return true;                                          // Android WebView
+    if (/Android/.test(ua) && /Version\/\d/.test(ua) && /Chrome\//.test(ua)) return true; // older Android WebView signature
+    if (/(iPhone|iPod|iPad)/.test(ua) && !/Safari\//.test(ua)) return true;      // iOS WKWebView
+    if (/(FBAN|FBAV|Instagram|Line\/|MicroMessenger|Snapchat)/.test(ua)) return true; // in-app browsers
+    return false;
+}
+function publicSiteUrl() { return window.PVP_PUBLIC_URL || 'https://alpha-omega69.github.io/AI-QUIZ-PRO/'; }
+function openSiteButton() {
+    return `<br><button class="btn full-btn" style="width:100%; margin-top:8px;" onclick="window.open('${publicSiteUrl()}','_blank')">🌐 OPEN THE WEBSITE IN YOUR BROWSER</button>`;
+}
+function googleDiag() { return `<br><small style="opacity:.7;">Origin: ${escHtmlAuth(location.origin)}</small>`; }
+function googleOriginProblem() {
+    if (!/^https?:$/.test(location.protocol)) {
+        return `Google sign-in can't run from a local file or inside the installed app (${escHtmlAuth(location.protocol)}). Open the website in Chrome/Safari, sign in there, or use Email / Guest here.` + openSiteButton();
+    }
+    if (isEmbeddedWebView()) {
+        return `You're inside an embedded browser (an editor preview or in-app browser). <b>Google blocks sign-in there</b> — it only works in a normal browser like Chrome or Safari. Open the website in your browser, or use Email / Guest here.` + openSiteButton() + googleDiag();
+    }
+    return '';
+}
+
+function showGoogleSetupPanel(reason) {
+    const origin = location.origin;
+    showGoogleMessage(
+        `${reason ? '<b>' + reason + '</b><br>' : ''}` +
+        `Google sign-in needs a free <b>Client ID</b> from Google Cloud (one-time, ~5 min — see AUTH_SETUP.md).<br>` +
+        `Add this exact address under <i>Authorized JavaScript origins</i>:<br><code style="user-select:all;">${escHtmlAuth(origin)}</code><br>` +
+        `Then paste the Client ID here:` +
+        `<input id="google-client-id-input" class="settings-key-input" type="text" placeholder="1234567890-abc….apps.googleusercontent.com" autocomplete="off" spellcheck="false" style="margin:8px 0; width:100%; box-sizing:border-box;">` +
+        `<button class="btn full-btn" style="width:100%;" onclick="saveGoogleClientId()">SAVE &amp; SIGN IN</button>`,
+        'warn');
+}
+window.saveGoogleClientId = function() {
+    const el = document.getElementById('google-client-id-input');
+    const id = el ? el.value.trim() : '';
+    if (!/^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(id)) {
+        showGoogleSetupPanel('That doesn\'t look like a Google Client ID (it should end in .apps.googleusercontent.com).');
         return;
     }
-    google.accounts.id.initialize({
-        client_id: AUTH_CONFIG.googleClientId,
-        callback: handleGoogleCredential
-    });
-    google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed && notification.isNotDisplayed() ||
-            notification.isSkippedMoment && notification.isSkippedMoment()) {
-            showAuthSetupNotice('Google (popup blocked or dismissed — try again)', 'google-login-btn');
-        }
-    });
+    try { localStorage.setItem('google_client_id', id); } catch (e) {}
+    showGoogleMessage('');
+    applyAuthSetupBadges();
+    loginWithGoogle();
 };
 
-function handleGoogleCredential(response) {
+window.loginWithGoogle = function() {
+    showGoogleMessage('');
+    const problem = googleOriginProblem();
+    if (problem) { showGoogleMessage(problem, 'error'); return; }
+    const clientId = getGoogleClientId();
+    if (!clientId) { showGoogleSetupPanel(''); return; }
+    if (!googleSdkReady()) {
+        showGoogleMessage(navigator.onLine === false
+            ? 'You appear to be offline — Google sign-in needs internet. Use Email or Guest for now.'
+            : 'Google\'s sign-in script hasn\'t loaded (slow network, or an ad-blocker / firewall is blocking accounts.google.com). Wait a moment and tap again, or use Email / Guest.', 'error');
+        return;
+    }
+    // Popup flow: always opens when tapped. (The older One-Tap prompt is silently suppressed by
+    // browsers after a dismissal, in Incognito, and by some privacy settings — that looked like "nothing happens".)
     try {
-        const payload = decodeJwtPayload(response.credential);
-        saveUserProfile({ name: payload.name, email: payload.email, avatar: payload.picture, method: 'google' });
+        const client = google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: 'openid email profile',
+            callback: handleGoogleToken,
+            error_callback: (err) => {
+                const t = err && err.type;
+                if (t === 'popup_closed') showGoogleMessage('Google sign-in was closed before finishing. If you saw an error page like <b>origin_mismatch</b> or <b>access blocked</b>, add <code>' + escHtmlAuth(location.origin) + '</code> under Authorized JavaScript origins (and your account under Test users) in Google Cloud. Otherwise just tap to try again.', 'warn');
+                else if (t === 'popup_failed_to_open') showGoogleMessage('Your browser blocked the Google sign-in popup. Allow popups for this site and try again.' + googleDiag(), 'error');
+                else showGoogleMessage('Google sign-in failed' + (t ? ' (' + escHtmlAuth(t) + ')' : '') + '. Try again or use Email / Guest.', 'error');
+            }
+        });
+        client.requestAccessToken({ prompt: '' });
     } catch (e) {
-        console.error('Google credential decode failed:', e);
-        showAuthSetupNotice('Google (something went wrong)', 'google-login-btn');
+        console.error('Google init failed:', e);
+        showGoogleMessage('Google sign-in could not start: ' + escHtmlAuth(e.message || e), 'error');
+    }
+};
+
+async function handleGoogleToken(resp) {
+    if (!resp || resp.error) {
+        const e = (resp && resp.error) || 'unknown';
+        showGoogleMessage(e === 'access_denied'
+            ? 'Google sign-in was cancelled.'
+            : `Google refused the sign-in (${escHtmlAuth(e)}). If the popup said <b>origin_mismatch</b>, add <code>${escHtmlAuth(location.origin)}</code> to Authorized JavaScript origins in Google Cloud.`, 'error');
+        return;
+    }
+    try {
+        const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + resp.access_token } });
+        if (!r.ok) throw new Error('profile request failed (' + r.status + ')');
+        const me = await r.json();
+        saveUserProfile({ name: me.name || me.given_name || (me.email || 'Google user').split('@')[0], email: me.email || null, avatar: me.picture || null, method: 'google' });
+    } catch (e) {
+        console.error('Google profile fetch failed:', e);
+        showGoogleMessage('Signed in with Google, but fetching your profile failed: ' + escHtmlAuth(e.message || e) + '. Try again or use Email / Guest.', 'error');
     }
 }
 

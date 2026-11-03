@@ -80,62 +80,150 @@ window.switchStudyTab = function(tabId, btn) {
 /* ============================================================================
    INDEXEDDB — small helper
    ============================================================================ */
-const STUDY_DB_NAME = 'ai_quiz_pro_study';
-const STUDY_DB_VERSION = 1;
-let studyDbPromise = null;
+// Storage now lives in js/db.js (shared database "ai_quiz_pro_study", store "pdfs"), which also
+// falls back to localStorage when IndexedDB is blocked. These thin wrappers keep the rest of this
+// file unchanged.
+async function dbAddPdf(record) { return window.dbStore('pdfs', record.id, record); }
+async function dbGetAllPdfs() { return window.dbGetAll('pdfs'); }
+async function dbGetPdf(id) { return window.dbGet('pdfs', id); }
+async function dbDeletePdf(id) { return window.dbDelete('pdfs', id); }
 
-function openStudyDb() {
-    if (studyDbPromise) return studyDbPromise;
-    studyDbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(STUDY_DB_NAME, STUDY_DB_VERSION);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains('pdfs')) {
-                db.createObjectStore('pdfs', { keyPath: 'id' });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-    return studyDbPromise;
+/* ============================================================================
+   APP TOAST — small clay notification used by flashcards, Pomodoro, Feynman, storage errors
+   ============================================================================ */
+// kind: 'success' | 'error' | 'warn' | 'info'.  Never throws; safe to call before the DOM is ready.
+window.showAppToast = function (message, kind, opts) {
+    try {
+        opts = opts || {};
+        let stack = document.getElementById('app-toast-stack');
+        if (!stack) {
+            stack = document.createElement('div');
+            stack.id = 'app-toast-stack';
+            stack.setAttribute('role', 'status');
+            stack.setAttribute('aria-live', 'polite');
+            document.body.appendChild(stack);
+        }
+        const icons = { success: '✅', error: '⚠️', warn: '⚠️', info: 'ℹ️' };
+        const el = document.createElement('div');
+        el.className = 'app-toast app-toast-' + (kind || 'info');
+        const ic = document.createElement('span'); ic.className = 'app-toast-icon'; ic.textContent = opts.icon || icons[kind || 'info'];
+        const tx = document.createElement('span'); tx.className = 'app-toast-text'; tx.textContent = String(message);
+        el.appendChild(ic); el.appendChild(tx);
+        stack.appendChild(el);
+        while (stack.children.length > 3) stack.removeChild(stack.firstChild);
+        requestAnimationFrame(() => el.classList.add('show'));
+        const ms = opts.ms || (kind === 'error' ? 6000 : 4200);
+        setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, ms);
+    } catch (e) { console.log(message); }
+};
+
+/* ============================================================================
+   AUTO-FLASHCARD EXTRACTION — document text -> AI -> Leitner deck (Box 1, due today)
+   ============================================================================ */
+const FLASHCARD_MIN_TEXT = 80;
+const FLASHCARD_MAX_CARDS = 12;
+
+// Picks up to ~12k chars that cover the whole document (start, middle, end) instead of only page 1.
+function sampleDocText(text) {
+    text = String(text || '').replace(/\s+/g, ' ').trim();
+    const LIMIT = 12000;
+    if (text.length <= LIMIT) return text;
+    const part = Math.floor(LIMIT / 3), mid = Math.floor(text.length / 2 - part / 2);
+    return [text.slice(0, part), text.slice(mid, mid + part), text.slice(text.length - part)].join(' […] ');
 }
 
-async function dbAddPdf(record) {
-    const db = await openStudyDb();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('pdfs', 'readwrite');
-        tx.objectStore('pdfs').put(record);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
+// Accepts [{front,back}], {cards:[...]}, {flashcards:[...]}, or any object whose first array value holds cards.
+function parseFlashcardJson(raw) {
+    let t = String(raw == null ? '' : raw).replace(/```json|```/gi, '').trim();
+    let data = null;
+    try { data = JSON.parse(t); }
+    catch (e) {
+        const a = t.indexOf('['), b = t.lastIndexOf(']');
+        if (a !== -1 && b > a) { try { data = JSON.parse(t.slice(a, b + 1)); } catch (e2) {} }
+        if (data == null && typeof window.extractJson === 'function') { try { data = extractJson(t); } catch (e3) {} }
+    }
+    if (data && !Array.isArray(data) && typeof data === 'object') {
+        data = data.cards || data.flashcards || data.deck || Object.values(data).find(Array.isArray) || null;
+    }
+    if (!Array.isArray(data)) throw new Error('the AI reply was not a list of cards');
+    const seen = new Set(), out = [];
+    data.forEach(c => {
+        if (!c || typeof c !== 'object') return;
+        const front = String(c.front != null ? c.front : (c.question != null ? c.question : '')).replace(/\s+/g, ' ').trim().slice(0, 220);
+        const back = String(c.back != null ? c.back : (c.answer != null ? c.answer : '')).replace(/\s+/g, ' ').trim().slice(0, 500);
+        const key = front.toLowerCase();
+        if (front.length < 3 || back.length < 2 || seen.has(key)) return;
+        seen.add(key); out.push({ front, back });
     });
+    return out.slice(0, FLASHCARD_MAX_CARDS);
 }
-async function dbGetAllPdfs() {
-    const db = await openStudyDb();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('pdfs', 'readonly');
-        const req = tx.objectStore('pdfs').getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-    });
-}
-async function dbGetPdf(id) {
-    const db = await openStudyDb();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('pdfs', 'readonly');
-        const req = tx.objectStore('pdfs').get(id);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-    });
-}
-async function dbDeletePdf(id) {
-    const db = await openStudyDb();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('pdfs', 'readwrite');
-        tx.objectStore('pdfs').delete(id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
+
+const _extracting = new Set(); // one extraction per document name at a time
+window.extractFlashcardsFromText = async function (text, docName, btn) {
+    const name = docName || 'document';
+    const body = sampleDocText(text);
+    if (body.length < FLASHCARD_MIN_TEXT) {
+        showAppToast('Not enough readable text in this document to build flashcards (scanned PDFs have none).', 'warn');
+        return 0;
+    }
+    if (_extracting.has(name)) return 0;
+    _extracting.add(name);
+
+    const original = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pvp-spin"></span>Extracting…'; }
+    if (typeof playSound === 'function') playSound('snd-click');
+
+    try {
+        if (typeof askFreeAI !== 'function') throw new Error('AI engine unavailable');
+        const prompt = `You are building a study deck from the document below. Extract between 8 and 12 high-yield core concepts. ` +
+            `Each card: "front" = a short question or key term (max 20 words); "back" = a clear, self-contained answer (max 40 words). ` +
+            `Cover different parts of the document, no duplicates, no trivia. ` +
+            `Return JSON strictly as an array: [{"front": "...", "back": "..."}, ...]\n\nDOCUMENT "${name}":\n${body}`;
+        const ai = await askFreeAI(prompt, { timeoutMs: 25000 });
+        const cards = parseFlashcardJson(ai.text);
+        if (cards.length < 3) throw new Error('the AI returned too few usable cards');
+
+        const before = new Set(Object.keys(getLeitnerBank()));
+        let added = 0;
+        cards.forEach(c => {
+            const card = window.addFlashcard(c.front, c.back, 'doc:' + name);
+            if (card && !before.has(card.id)) { added++; before.add(card.id); }
+        });
+
+        if (window.renderFlashcardStats) renderFlashcardStats();
+        if (window.renderFlashcardLibrary) renderFlashcardLibrary();
+        if (window.renderDueReviewBadge) renderDueReviewBadge();
+        if (typeof playSound === 'function') playSound('snd-correct');
+        const dup = cards.length - added;
+        showAppToast(`✨ ${added} flashcard${added === 1 ? '' : 's'} added to Box 1 — due today` + (dup > 0 ? ` (${dup} already in your deck)` : ''), 'success', { icon: '🗂️' });
+        return added;
+    } catch (e) {
+        console.warn('Flashcard extraction failed:', e);
+        if (typeof playSound === 'function') playSound('snd-wrong');
+        showAppToast(`Couldn't extract flashcards: ${(e && e.message) || e}`, 'error');
+        return 0;
+    } finally {
+        _extracting.delete(name);
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    }
+};
+
+// Study Hub: extract from a stored PDF (list row or the open viewer)
+window.extractFlashcardsFromPdf = async function (id, btn) {
+    try {
+        const record = await dbGetPdf(id);
+        if (!record) throw new Error('PDF not found');
+        // read the text first (can take a moment), with the button already showing progress
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pvp-spin"></span>Reading PDF…'; }
+        let text = '';
+        try { text = await extractPdfText(record, 30); }
+        finally { if (btn) { btn.disabled = false; btn.innerHTML = '✨ Extract Flashcard Deck'; } }
+        return window.extractFlashcardsFromText(text, record.name.replace(/\.pdf$/i, ''), btn);
+    } catch (e) {
+        showAppToast("Couldn't read that PDF: " + ((e && e.message) || e), 'error');
+        return 0;
+    }
+};
 
 /* ============================================================================
    PDF LIBRARY
@@ -143,19 +231,26 @@ async function dbDeletePdf(id) {
 window.handlePdfUpload = async function(event) {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
+    let added = 0;
     for (const file of files) {
         if (file.type !== 'application/pdf') continue;
-        const buffer = await file.arrayBuffer();
-        await dbAddPdf({
-            id: `pdf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            name: file.name,
-            size: file.size,
-            addedAt: new Date().toISOString(),
-            data: buffer
-        });
+        try {
+            const buffer = await file.arrayBuffer();
+            await dbAddPdf({
+                id: `pdf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                name: file.name,
+                size: file.size,
+                addedAt: new Date().toISOString(),
+                data: buffer
+            });
+            added++;
+        } catch (e) {
+            console.warn('PDF save failed:', e);
+            showAppToast(`Couldn't save "${file.name}": ${e.message || e}`, 'error');
+        }
     }
     renderPdfLibrary();
-    if (typeof playSound === 'function') playSound('snd-correct');
+    if (added && typeof playSound === 'function') playSound('snd-correct');
 };
 
 let selectedPdfIds = new Set();
@@ -178,7 +273,7 @@ async function renderPdfLibrary() {
     }
     items.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
     list.innerHTML = items.map(item => `
-        <div class="lib-item">
+        <div class="lib-item lib-item-wrap">
             <label class="pdf-select-check">
                 <input type="checkbox" ${selectedPdfIds.has(item.id) ? 'checked' : ''} onchange="togglePdfSelect('${item.id}', this.checked)">
             </label>
@@ -187,6 +282,7 @@ async function renderPdfLibrary() {
                 <button class="ui-btn" style="padding:5px 8px; font-size:0.55rem;" onclick="openPdfViewer('${item.id}')">OPEN</button>
                 <button class="ui-btn" style="padding:5px 8px; font-size:0.55rem; border-color:var(--danger); color:var(--danger);" onclick="deletePdf('${item.id}')">DEL</button>
             </div>
+            <button class="ui-btn extract-cards-btn" onclick="extractFlashcardsFromPdf('${item.id}', this)">✨ Extract Flashcard Deck</button>
         </div>
     `).join('');
     renderMegaQuizBar();
@@ -275,10 +371,12 @@ function escStudy(str) {
    ============================================================================ */
 let pdfCurrentDoc = null;
 let pdfCurrentPage = 1;
+let pdfCurrentId = null;
 
 window.openPdfViewer = async function(id) {
     const record = await dbGetPdf(id);
     if (!record) return;
+    pdfCurrentId = id;
 
     document.getElementById('pdf-library-list').style.display = 'none';
     document.querySelector('#study-tab-pdfs > .btn').style.display = 'none';
@@ -323,6 +421,8 @@ async function renderPdfPage() {
     document.getElementById('pdf-page-indicator').textContent = `PAGE ${pdfCurrentPage} / ${pdfCurrentDoc.numPages}`;
 }
 
+window.extractFlashcardsFromViewer = function (btn) { if (pdfCurrentId) return extractFlashcardsFromPdf(pdfCurrentId, btn); };
+
 window.pdfPrevPage = function() {
     if (!pdfCurrentDoc || pdfCurrentPage <= 1) return;
     pdfCurrentPage--; renderPdfPage();
@@ -334,7 +434,7 @@ window.pdfNextPage = function() {
     if (typeof playSound === 'function') playSound('snd-click');
 };
 window.closePdfViewer = function() {
-    pdfCurrentDoc = null;
+    pdfCurrentDoc = null; pdfCurrentId = null;
     document.getElementById('pdf-viewer').style.display = 'none';
     document.getElementById('pdf-library-list').style.display = 'block';
     const addBtn = document.querySelector('#study-tab-pdfs > .btn');
@@ -846,3 +946,163 @@ window.generateFlashcardsFromWeakSpots = function() {
     renderFlashcardStats();
     renderFlashcardLibrary();
 };
+
+/* ============================================================================
+   POMODORO — focus / break timer inside the Study Hub
+   ============================================================================
+   25-minute focus sessions and 5-minute breaks. A finished FOCUS session plays a chime, awards
+   +15 XP and shows a toast. The clock runs off a wall-clock deadline (not tick counting), so it
+   stays accurate when the tab is throttled or the phone sleeps, and it keeps running while you
+   browse other pages. State is saved so a reload mid-session picks up where it left off.
+   -------------------------------------------------------------------------- */
+window.Pomodoro = (function () {
+    const KEY = 'pomodoro_state_v1';
+    const STATS_KEY = 'pomodoro_stats_v1';
+    const XP_PER_FOCUS = 15;
+    const MODES = { focus: { label: 'FOCUS', icon: '🍅' }, break: { label: 'BREAK', icon: '☕' } };
+    // minutes -> seconds. Exposed so tests / future settings can change them.
+    const durations = { focus: 25 * 60, break: 5 * 60 };
+    const RING_LEN = 2 * Math.PI * 92; // circumference of the SVG progress ring (r = 92)
+
+    let mode = 'focus';
+    let running = false;
+    let remaining = durations.focus;   // seconds left while paused
+    let endsAt = 0;                    // wall-clock ms when the running timer hits zero
+    let tickId = null;
+    let started = false;               // has this countdown been started (so pause != reset)
+
+    const $ = id => document.getElementById(id);
+
+    function secondsLeft() {
+        return running ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : remaining;
+    }
+    function fmt(sec) {
+        const m = Math.floor(sec / 60), s = sec % 60;
+        return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    /* ---- persistence ---- */
+    function save() {
+        try { localStorage.setItem(KEY, JSON.stringify({ mode, running, remaining: secondsLeft(), endsAt: running ? endsAt : 0, started, savedAt: Date.now() })); } catch (e) {}
+    }
+    function load() {
+        try {
+            const st = JSON.parse(localStorage.getItem(KEY) || 'null');
+            if (!st || !MODES[st.mode]) return;
+            mode = st.mode; started = !!st.started;
+            remaining = Math.min(durations[mode], Math.max(0, st.remaining | 0));
+            if (st.running && st.endsAt) {
+                if (st.endsAt > Date.now()) { running = true; endsAt = st.endsAt; }
+                else { remaining = durations[mode]; started = false; } // ran out while the app was closed: don't award XP for time we didn't witness
+            }
+        } catch (e) {}
+    }
+
+    /* ---- daily stats ---- */
+    function todayStr() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+    function getStats() {
+        try {
+            const st = JSON.parse(localStorage.getItem(STATS_KEY) || 'null');
+            if (st && st.day === todayStr()) return st;
+        } catch (e) {}
+        return { day: todayStr(), sessions: 0 };
+    }
+    function bumpStats() {
+        const st = getStats(); st.sessions++;
+        try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch (e) {}
+        try { localStorage.setItem('pomodoro_total', String((parseInt(localStorage.getItem('pomodoro_total') || '0', 10) || 0) + 1)); } catch (e) {}
+    }
+
+    /* ---- rendering ---- */
+    function render() {
+        const left = secondsLeft();
+        const total = durations[mode];
+        const el = $('pomo-time'); if (!el) return;
+        el.textContent = fmt(left);
+        const pct = total ? Math.max(0, Math.min(1, left / total)) : 0;
+        const ring = $('pomo-ring-fill');
+        if (ring) { ring.style.strokeDasharray = String(RING_LEN); ring.style.strokeDashoffset = String(RING_LEN * (1 - pct)); }
+        const lab = $('pomo-mode-label'); if (lab) lab.textContent = MODES[mode].icon + ' ' + MODES[mode].label;
+        const root = $('pomo-card'); if (root) { root.dataset.mode = mode; root.classList.toggle('running', running); }
+        document.querySelectorAll('#pomo-mode-chips .rd-chip').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+        const startBtn = $('pomo-start-btn');
+        if (startBtn) startBtn.textContent = running ? '⏸ PAUSE' : (started && left < total ? '▶ RESUME' : '▶ START');
+        const st = getStats();
+        const sEl = $('pomo-sessions'); if (sEl) sEl.textContent = st.sessions + (st.sessions === 1 ? ' session' : ' sessions') + ' today';
+    }
+
+    /* ---- engine ---- */
+    function stopTick() { clearInterval(tickId); tickId = null; }
+    function startTick() { stopTick(); tickId = setInterval(tick, 250); }
+    function tick() {
+        if (!running) { stopTick(); return; }
+        if (Date.now() >= endsAt) { complete(); return; }
+        render();
+    }
+
+    function complete() {
+        stopTick();
+        const finished = mode;
+        running = false; started = false;
+        if (finished === 'focus') {
+            bumpStats();
+            if (typeof playSound === 'function') playSound('snd-correct');
+            if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+            const award = window.awardXP || window.awardExp;
+            if (typeof award === 'function') award(XP_PER_FOCUS, 'Pomodoro Session');
+            showAppToast(`🍅 Focus session complete! +${XP_PER_FOCUS} XP — take a 5-minute break.`, 'success', { icon: '🎉', ms: 6000 });
+            mode = 'break';              // suggest the break, but let the player press start
+        } else {
+            if (typeof playSound === 'function') playSound('snd-powerup-time');
+            if (navigator.vibrate) navigator.vibrate(80);
+            showAppToast('☕ Break over — ready for another focus session?', 'info', { icon: '⏰' });
+            mode = 'focus';
+        }
+        remaining = durations[mode];
+        save(); render();
+    }
+
+    function start() {
+        if (running) return;
+        if (remaining <= 0) remaining = durations[mode];
+        running = true; started = true;
+        endsAt = Date.now() + remaining * 1000;
+        if (typeof playSound === 'function') playSound('snd-click');
+        startTick(); save(); render();
+    }
+    function pause() {
+        if (!running) return;
+        remaining = secondsLeft();
+        running = false; stopTick();
+        if (typeof playSound === 'function') playSound('snd-click');
+        save(); render();
+    }
+    function toggle() { running ? pause() : start(); }
+    function reset() {
+        running = false; started = false; stopTick();
+        remaining = durations[mode];
+        if (typeof playSound === 'function') playSound('snd-click');
+        save(); render();
+    }
+    function setMode(m) {
+        if (!MODES[m] || m === mode) return;
+        if (running && !window.confirm('A timer is running. Switch and discard it?')) return;
+        running = false; started = false; stopTick();
+        mode = m; remaining = durations[mode];
+        if (typeof playSound === 'function') playSound('snd-click');
+        save(); render();
+    }
+
+    // Called when the Study Hub tab becomes visible, and once on startup.
+    function init() {
+        load();
+        if (running) startTick();
+        render();
+    }
+    document.addEventListener('DOMContentLoaded', init);
+    // pages / tabs are hidden, never destroyed, but re-render in case the clock moved on
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (running && Date.now() >= endsAt) complete(); else render(); } });
+
+    return { start, pause, toggle, reset, setMode, render, init, durations,
+             state: () => ({ mode, running, remaining: secondsLeft(), started }) };
+})();

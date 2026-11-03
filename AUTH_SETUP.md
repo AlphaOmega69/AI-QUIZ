@@ -23,6 +23,10 @@ Both of these are **free** and take about 5 minutes each.
    ```
 6. Reload the app — "Continue with Google" now works.
 
+**No file editing needed:** you can also tap **Continue with Google** on the login screen — if no Client ID is set it shows the exact "Authorized JavaScript origin" to add and a box to paste the Client ID into (saved in this browser only).
+
+**Why it can fail:** (a) no Client ID yet; (b) the address in the browser bar isn't listed under *Authorized JavaScript origins* (Google's popup then says `origin_mismatch`); (c) the OAuth consent screen is in "Testing" mode and your account isn't added as a *Test user*; (d) a popup/ad blocker is blocking the Google popup or `accounts.google.com`.
+
 **Important:** this only works when the app is served over `http://localhost` or a real `https://` domain that matches what you entered as an authorized origin — it will not work opened directly from a `file://` path on your computer.
 
 ---

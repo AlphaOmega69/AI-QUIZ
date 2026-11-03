@@ -42,6 +42,7 @@ function awardExp(amount, reasonLabel) {
     }
 }
 window.awardExp = awardExp;
+window.awardXP = awardExp; // alias used by the Pomodoro timer
 
 // Small "+15 XP — Daily task" style toast, queued so multiple awards don't overlap.
 let expToastQueue = [];

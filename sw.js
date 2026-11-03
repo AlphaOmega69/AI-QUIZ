@@ -1,11 +1,12 @@
 // AI Quiz Pro — Service Worker
 // Caches the app shell so the app opens instantly and works offline for the UI
 // (quiz generation itself always needs a live network connection to reach the AI).
-const CACHE_NAME = 'ai-quiz-pro-v12';
+const CACHE_NAME = 'ai-quiz-pro-v16';
 const APP_SHELL = [
     './AI_QUIZ.html',
     './css/style.css',
     './js/nav.js',
+    './js/db.js',
     './js/app.js',
     './js/sound.js',
     './js/charts.js',
@@ -70,10 +71,12 @@ self.addEventListener('fetch', (event) => {
     const isLocalAsset = url.origin === self.location.origin;
     if (isLocalAsset) {
         event.respondWith(
-            caches.match(req).then((cached) => {
+            // Opening the app from a PvP invite link (?pvp=…&pw=…) is a navigation with a query string:
+            // match the cached shell regardless of the query, and never store that URL (it contains a room password).
+            caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then((cached) => {
                 if (cached) return cached;
                 return fetch(req).then((res) => {
-                    if (res && res.status === 200 && res.type === 'basic') {
+                    if (res && res.status === 200 && res.type === 'basic' && !url.search.includes('pvp=')) {
                         const clone = res.clone();
                         caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
                     }

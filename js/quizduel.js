@@ -55,6 +55,7 @@
 
     let botLevel = 'normal';
     let du = fresh();
+    let prefetch = null; // { topic, promise } — host starts generating while the friend is still connecting
 
     function fresh() {
         return {
@@ -121,21 +122,28 @@
     function fallbackSet() {
         return shuffle(FALLBACK).slice(0, QUESTIONS_PER_DUEL).map(([q, a, wrong, exp]) => ({ q, a, o: shuffle([a].concat(wrong)), exp }));
     }
+    const GEN_CAP_MS = 32000; // hard ceiling: a slow AI must never leave two players staring at a spinner (own key 14s + free AI 14s)
+    function withCap(promise, ms) {
+        let t;
+        const cap = new Promise((_, rej) => { t = setTimeout(() => rej(new Error('AI timed out after ' + Math.round(ms / 1000) + 's')), ms); });
+        return Promise.race([promise, cap]).finally(() => clearTimeout(t));
+    }
     async function generateQuestions(topic) {
         try {
-            if (typeof executeAPIRequest !== 'function') throw new Error('AI engine unavailable');
+            if (typeof askFreeAI !== 'function') throw new Error('AI engine unavailable');
             const promptText = `Topic: ${topic}. Generate exactly ${QUESTIONS_PER_DUEL} multiple-choice questions for a competitive 1v1 quiz duel. Keep them punchy and fair (not overly obscure), each with exactly 3 wrong answers that are plausible but clearly wrong. Return JSON strictly: {"questions": [{"question": "...", "correct_answer": "...", "incorrect_answers": ["...", "...", "..."], "explanation": "..."}]}`;
-            const raw = await executeAPIRequest(promptText, false);
-            const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').trim());
+            // your Groq/Gemini key first, then the keyless public AI, each capped at 14s.
+            const ai = await withCap(askFreeAI(promptText, { timeoutMs: 14000 }), GEN_CAP_MS);
+            const parsed = extractJson(ai.text);
             const qs = (parsed.questions || []).map(q => ({
                 q: q.question, a: q.correct_answer,
                 o: shuffle([q.correct_answer].concat(q.incorrect_answers || [])), exp: q.explanation || ''
             })).filter(validQuestion).slice(0, QUESTIONS_PER_DUEL);
-            if (qs.length < 4) throw new Error('Too few valid questions');
-            return { questions: qs, fallback: false };
+            if (qs.length < 4) throw new Error('AI returned too few usable questions');
+            return { questions: qs, fallback: false, via: ai.via };
         } catch (e) {
             console.warn('Quiz Duel: using built-in questions —', e && e.message);
-            return { questions: fallbackSet(), fallback: true };
+            return { questions: fallbackSet(), fallback: true, reason: (e && e.message) || 'unknown' };
         }
     }
 
@@ -169,14 +177,23 @@
     async function startWithQuestions(generate) {
         if (generate) {
             du.generating = true;
-            loading(`Generating battle questions about "${du.topic}"...`);
-            const gen = await generateQuestions(du.topic);
+            const topic = du.topic, t0 = Date.now();
+            const label = () => `Generating battle questions about "${topic}"… ${Math.floor((Date.now() - t0) / 1000)}s`;
+            loading(label());
+            if (du.mode === 'pvp') p2pSend({ type: 'duel-status', text: `Host is generating questions about "${topic}"…` });
+            const tick = setInterval(() => { if (du.generating && du.active) $('duel-question-text').textContent = label(); }, 1000);
+            // reuse the questions the host began generating while waiting for the friend to connect
+            let job = null;
+            if (prefetch && prefetch.topic === topic) { job = prefetch.promise; }
+            prefetch = null;
+            const gen = await (job || generateQuestions(topic));
+            clearInterval(tick);
             if (!du.active) return; // player left while the AI was thinking
             du.generating = false;
             du.questions = gen.questions;
             if (du.mode === 'pvp') p2pSend({ type: 'duel-questions', questions: du.questions, topic: du.topic });
             beginMatch();
-            if (gen.fallback) $('duel-feedback').textContent = 'ℹ️ AI unavailable — using built-in questions.';
+            $('duel-feedback').textContent = gen.fallback ? `ℹ️ AI unavailable (${gen.reason}) — using built-in questions.` : `✨ Questions written by AI (${gen.via}).`;
         } else {
             beginMatch();
         }
@@ -202,6 +219,14 @@
         teardown();
         setStatus('');
         showPvpConnect('duel', { topic: topicValue() });
+    };
+
+    // Called by the connect overlay the moment THIS player becomes the host. Start the AI now:
+    // by the time a friend has connected the questions are usually ready, so nobody waits on it.
+    window.pvpOnHosting = window.pvpOnHosting || {};
+    window.pvpOnHosting.duel = function (opts) {
+        const topic = (opts && opts.topic) || 'General Knowledge';
+        prefetch = { topic, promise: generateQuestions(topic) };
     };
 
     window.pvpLaunchers = window.pvpLaunchers || {};
@@ -322,6 +347,9 @@
         switch (data.type) {
             case 'duel-ready':
                 if (du.isHost && !du.generating && !du.questions.length) startWithQuestions(true);
+                break;
+            case 'duel-status':
+                if (!du.isHost && !du.questions.length && typeof data.text === 'string') loading(data.text.slice(0, 120));
                 break;
             case 'duel-questions':
                 if (!du.isHost && Array.isArray(data.questions) && data.questions.every(validQuestion)) {

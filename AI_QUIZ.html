@@ -293,6 +293,7 @@
     <button id="audio-download-btn" class="btn full-btn" style="display: none; border-color: var(--success); color: var(--success); font-size: 0.65rem; margin-top:10px;" onclick="downloadRecording()">💾 DOWNLOAD RECORDING</button>
 
     <div id="custom-status" class="source-status">No active data stream</div>
+    <button id="doc-extract-btn" class="btn full-btn extract-cards-btn" style="display:none;" onclick="extractFlashcardsFromActiveDoc(this)">✨ Extract Flashcard Deck</button>
 
     <div class="section-label">FROM A TOPIC</div>
     <div class="input-card">
@@ -318,6 +319,7 @@
             <button class="tab-btn active" onclick="switchStudyTab('notes', this)">📝 NOTES</button>
             <button class="tab-btn" onclick="switchStudyTab('pdfs', this)">📄 PDFS</button>
             <button class="tab-btn" onclick="switchStudyTab('music', this)">🎵 MUSIC</button>
+            <button class="tab-btn" onclick="switchStudyTab('pomodoro', this)">🍅 POMODORO</button>
         </div>
 
         <div id="study-tab-notes" class="tab-content active">
@@ -339,6 +341,7 @@
                 <div class="pdf-viewer-toolbar">
                     <button class="ui-btn" style="padding:6px 10px; font-size:0.6rem;" onclick="closePdfViewer()">← BACK</button>
                     <span id="pdf-viewer-title" class="pdf-viewer-title"></span>
+                    <button class="ui-btn extract-cards-btn extract-cards-inline" onclick="extractFlashcardsFromViewer(this)">✨ Extract Flashcard Deck</button>
                 </div>
                 <div id="pdf-canvas-wrap"><canvas id="pdf-canvas"></canvas></div>
                 <div class="pdf-viewer-toolbar" style="justify-content:center; gap:16px;">
@@ -346,6 +349,31 @@
                     <span id="pdf-page-indicator" style="font-size:0.65rem;"></span>
                     <button class="ui-btn" style="padding:6px 12px;" onclick="pdfNextPage()">NEXT ›</button>
                 </div>
+            </div>
+        </div>
+
+        <div id="study-tab-pomodoro" class="tab-content">
+            <div id="pomo-card" class="pomo-card" data-mode="focus">
+                <div id="pomo-mode-chips" class="rd-chip-row pomo-chips">
+                    <button class="rd-chip active" data-mode="focus" onclick="Pomodoro.setMode('focus')">🍅 FOCUS · 25 MIN</button>
+                    <button class="rd-chip" data-mode="break" onclick="Pomodoro.setMode('break')">☕ BREAK · 5 MIN</button>
+                </div>
+                <div class="pomo-dial">
+                    <svg viewBox="0 0 200 200" class="pomo-ring" aria-hidden="true">
+                        <circle class="pomo-ring-track" cx="100" cy="100" r="92"></circle>
+                        <circle id="pomo-ring-fill" class="pomo-ring-fill" cx="100" cy="100" r="92" transform="rotate(-90 100 100)"></circle>
+                    </svg>
+                    <div class="pomo-dial-inner">
+                        <div id="pomo-mode-label" class="pomo-mode-label">🍅 FOCUS</div>
+                        <div id="pomo-time" class="pomo-time" role="timer" aria-live="off">25:00</div>
+                        <div id="pomo-sessions" class="pomo-sessions">0 sessions today</div>
+                    </div>
+                </div>
+                <div class="pomo-controls">
+                    <button id="pomo-start-btn" class="btn pomo-start" onclick="Pomodoro.toggle()">▶ START</button>
+                    <button id="pomo-reset-btn" class="btn pomo-reset" onclick="Pomodoro.reset()">↺ RESET</button>
+                </div>
+                <div class="settings-hint">Finish a 25-minute focus session to earn +15 XP. The timer keeps running while you browse other pages.</div>
             </div>
         </div>
 
@@ -632,6 +660,12 @@
             <button class="rd-chip" data-diff="hard" onclick="rdSelectDiff('hard')">🔥 HARD</button>
             <button class="rd-chip" data-diff="mixed" onclick="rdSelectDiff('mixed')">🎲 MIXED</button>
         </div>
+        <div class="section-label" style="margin-top:14px;">RIDDLE SOURCE</div>
+        <div id="rd-source-chips" class="rd-chip-row">
+            <button class="rd-chip active" data-source="ai" onclick="rdSelectSource('ai')">✨ AI — FRESH EVERY RUN</button>
+            <button class="rd-chip" data-source="bank" onclick="rdSelectSource('bank')">📚 BUILT-IN</button>
+        </div>
+        <div class="settings-hint" style="margin-top:8px;">AI uses your Gemini/Groq key if you have one, otherwise a free public AI — no key needed. If the AI can't be reached it falls back to the built-in riddles automatically.</div>
         <div class="chart-card" style="margin-top:14px;">
             <div class="settings-hint" style="margin:0;">
                 8 riddles per run. Faster answers earn a time bonus, every hint costs 25% of that riddle's points, each wrong guess costs 10%, and consecutive solves build a streak multiplier (up to ×1.5). Skipping or timing out resets the streak.
@@ -719,7 +753,7 @@
         <button class="btn full-btn" style="margin-top:18px; width:100%;" onclick="duelStartBot()">▶ FIGHT THE BOT</button>
         <button class="btn full-btn" style="margin-top:10px; width:100%; border-color:var(--warning); color:var(--warning);" onclick="duelOpenPvp()">🌐 PVP — CONNECT TO A FRIEND</button>
         <div id="duel-setup-status" class="rd-feedback" style="margin-top:12px;"></div>
-        <div class="settings-hint">8 questions · 20 seconds each · 20 damage per hit. Questions come from the AI (add your key in Settings); if it's unavailable the duel falls back to built-in questions so you can always play.</div>
+        <div class="settings-hint">8 questions · 20 seconds each · 20 damage per hit. Questions are written by AI — your Gemini/Groq key if you've added one, otherwise a free public AI. If the AI can't be reached the duel falls back to built-in questions so you can always play.</div>
     </div>
 
     <!-- Arena -->
@@ -767,6 +801,14 @@
         <div id="mega-qty-badge" style="display:none; margin-bottom: 20px; background: rgba(0,242,255,0.08); border: 1px solid var(--primary); border-radius: 12px; padding: 12px; font-size: 0.75rem; font-weight: 800; color: var(--primary); letter-spacing: 0.5px;">
             🧩 100 QUESTIONS · MEGA MODE
         </div>
+
+        <label id="feynman-setup" class="fy-setup" for="feynman-toggle">
+            <input type="checkbox" id="feynman-toggle" onchange="setFeynmanMode(this.checked)">
+            <span>
+                <div class="fy-setup-title">🧠 Feynman Mode (Explain in your own words)</div>
+                <div class="fy-setup-sub">No multiple choice — write your own explanation and the AI grades it 0–100 with feedback.</div>
+            </span>
+        </label>
 
         <div style="margin-bottom: 10px; font-size: 0.7rem; letter-spacing: 1px; opacity: 0.8;">SELECT DIFFICULTY</div>
         <div class="grid-menu" id="diff-buttons"></div>
@@ -937,6 +979,7 @@
             <label style="font-size:0.55rem; opacity:0.6;">RAPIDAPI KEY (optional, YouTube transcript)</label>
             <input type="password" id="key-rapidapi" class="settings-key-input" placeholder="optional">
             <div class="key-status" id="key-status-rapidapi"></div>
+            <label class="key-show-row" title="Arcade games (Quiz Duel, Riddle Rush) can use a free public AI when you have no key or your key fails. Only the game prompt is sent."><input type="checkbox" id="free-ai-toggle" checked onchange="try{localStorage.setItem('free_ai_off', this.checked?'0':'1')}catch(e){}"> Let arcade games use a free public AI when my key is missing</label>
             <label class="key-show-row"><input type="checkbox" onchange="['key-gemini','key-groq','key-rapidapi'].forEach(function(i){document.getElementById(i).type=this.checked?'text':'password'}.bind(this))"> Show keys</label>
             <button class="btn" style="width:100%; font-size:0.6rem; background:var(--success); color:#000;" onclick="saveApiKeys()">SAVE KEYS</button>
             <div class="settings-hint">Keys are stored only in this browser's local storage — never uploaded anywhere. Get a free Gemini key at <b>aistudio.google.com/apikey</b> and a free Groq key at <b>console.groq.com/keys</b>.</div>
@@ -958,38 +1001,102 @@
 
 <!-- SENPAI AI CHAT BUDDY -->
 <!-- ================= SHARED PvP CONNECT OVERLAY (floats above any arcade page) ================= -->
-<div id="pvp-connect-overlay" onclick="if(event.target===this)pvpCancelConnect()">
+<div id="pvp-connect-overlay" onclick="if(event.target===this&&pvpView!=='wait')pvpCancelConnect()" role="dialog" aria-modal="true" aria-labelledby="pvp-connect-title">
     <div id="pvp-connect-card">
         <h2 id="pvp-connect-title" style="color:var(--warning); margin-top:0;">Connect</h2>
-        <div class="settings-hint" style="margin-bottom:14px;">No account or server needed. One player hosts and sends a short code to the other (text, Discord, in person). The other pastes it in and sends back a reply code. That's the whole handshake.</div>
 
-        <div id="pvp-connect-choice" style="display:flex; gap:10px;">
-            <button class="btn full-btn" style="flex:1;" onclick="pvpChooseHost()">HOST GAME</button>
-            <button class="btn full-btn" style="flex:1;" onclick="pvpChooseJoin()">JOIN GAME</button>
-        </div>
-
-        <div id="pvp-host-panel" style="display:none;">
-            <div class="settings-hint">Send this code to the other player:</div>
-            <textarea id="pvp-host-code" class="settings-key-input" style="height:80px; font-size:0.55rem;" readonly onclick="pvpCopyCode('pvp-host-code')"></textarea>
-            <button class="btn full-btn" style="font-size:0.6rem; margin-bottom:14px; width:100%;" onclick="pvpCopyCode('pvp-host-code')">📋 COPY CODE</button>
-            <div class="settings-hint">Once they send back their reply code, paste it here:</div>
-            <textarea id="pvp-host-reply-input" class="settings-key-input" style="height:80px; font-size:0.55rem;" placeholder="Paste their reply code..."></textarea>
-            <button class="btn full-btn" style="width:100%;" onclick="pvpSubmitGuestReply()">CONNECT</button>
-        </div>
-
-        <div id="pvp-join-panel" style="display:none;">
-            <div class="settings-hint">Paste the host's code here:</div>
-            <textarea id="pvp-join-code-input" class="settings-key-input" style="height:80px; font-size:0.55rem;" placeholder="Paste the host's code..."></textarea>
-            <button class="btn full-btn" style="width:100%;" onclick="pvpSubmitHostCode()">GENERATE REPLY CODE</button>
-            <div id="pvp-join-reply-wrap" style="display:none; margin-top:14px;">
-                <div class="settings-hint">Send this reply code back to the host:</div>
-                <textarea id="pvp-join-reply-output" class="settings-key-input" style="height:80px; font-size:0.55rem;" readonly onclick="pvpCopyCode('pvp-join-reply-output')"></textarea>
-                <button class="btn full-btn" style="font-size:0.6rem; width:100%;" onclick="pvpCopyCode('pvp-join-reply-output')">📋 COPY REPLY CODE</button>
+        <!-- 1. PICK A WAY TO CONNECT -->
+        <div id="pvp-view-methods">
+            <div class="settings-hint" style="margin-bottom:14px;">Pick how to connect — match with a random player, or play a friend. After the handshake the match runs directly between your devices.</div>
+            <div class="pvp-methods">
+                <button class="pvp-method pvp-method-hero" onclick="pvpPickMethod('random')"><span class="pvp-method-ic">🎲</span><span><b>Random opponent</b><small>Get matched with anyone online who is searching right now.</small></span></button>
+                <button class="pvp-method" onclick="pvpPickMethod('room')"><span class="pvp-method-ic">🚪</span><span><b>Room name + password</b><small>Both type the same room &amp; password. Online.</small></span></button>
+                <button class="pvp-method" onclick="pvpPickMethod('link')"><span class="pvp-method-ic">🔗</span><span><b>Invite link</b><small>Send a link — they tap it and join automatically. Online.</small></span></button>
+                <button class="pvp-method" onclick="pvpPickMethod('wifi')"><span class="pvp-method-ic">📶</span><span><b>Same Wi-Fi / hotspot</b><small>Works with no internet. Swap two short codes.</small></span></button>
+                <button class="pvp-method" onclick="pvpPickMethod('code')"><span class="pvp-method-ic">🔤</span><span><b>Code exchange</b><small>Swap two codes over any chat app. Online, no server.</small></span></button>
             </div>
         </div>
 
-        <div id="pvp-connect-status" style="text-align:center; font-size:0.7rem; color:var(--primary); margin-top:14px; min-height:16px;"></div>
-        <button class="btn full-btn" style="margin-top:14px; opacity:0.7; width:100%;" onclick="pvpCancelConnect()">← CANCEL</button>
+        <!-- 2a. ROOM -->
+        <div id="pvp-view-room" style="display:none;">
+            <div class="settings-hint" style="margin-bottom:10px;">One player taps <b>HOST</b>, the other taps <b>JOIN</b> — using the exact same room name and password.</div>
+            <label class="pvp-label" for="pvp-room-name">Room name</label>
+            <input id="pvp-room-name" class="settings-key-input" type="text" maxlength="32" placeholder="e.g. friday-night" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <label class="pvp-label" for="pvp-room-pass">Password</label>
+            <input id="pvp-room-pass" class="settings-key-input" type="text" maxlength="32" placeholder="at least 3 characters" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <div id="pvp-room-error" class="pvp-error" role="alert"></div>
+            <div class="pvp-row">
+                <button class="btn full-btn" style="flex:1;" onclick="pvpRoomHost()">HOST ROOM</button>
+                <button class="btn full-btn" style="flex:1;" onclick="pvpRoomJoin()">JOIN ROOM</button>
+            </div>
+            <button class="btn full-btn pvp-back" onclick="pvpBackToMethods()">← OTHER WAYS TO CONNECT</button>
+        </div>
+
+        <!-- 2b. LINK -->
+        <div id="pvp-view-link" style="display:none;">
+            <div class="settings-hint" style="margin-bottom:10px;"><b>Host:</b> create a link and send it to your friend (WhatsApp, Discord, SMS…). When they open it they're connected automatically — keep this window open.</div>
+            <button class="btn full-btn" style="width:100%;" onclick="pvpLinkCreate()">🔗 CREATE INVITE LINK</button>
+            <div class="settings-hint" style="margin:16px 0 8px;"><b>Guest:</b> normally just tap the link. If it opened somewhere else, paste it here:</div>
+            <input id="pvp-link-paste" class="settings-key-input" type="text" placeholder="Paste invite link…" autocomplete="off" spellcheck="false">
+            <div id="pvp-link-error" class="pvp-error" role="alert"></div>
+            <button class="btn full-btn" style="width:100%;" onclick="pvpLinkJoinPasted()">JOIN WITH LINK</button>
+            <button class="btn full-btn pvp-back" onclick="pvpBackToMethods()">← OTHER WAYS TO CONNECT</button>
+        </div>
+
+        <!-- 2d. COPY/PASTE CODES (Wi-Fi + Code exchange) -->
+        <div id="pvp-view-code" style="display:none;">
+            <div id="pvp-code-hint" class="settings-hint" style="margin-bottom:14px;"></div>
+            <div id="pvp-code-choice" style="display:flex; gap:10px;">
+                <button class="btn full-btn" style="flex:1;" onclick="pvpChooseHost()">HOST GAME</button>
+                <button class="btn full-btn" style="flex:1;" onclick="pvpChooseJoin()">JOIN GAME</button>
+            </div>
+            <div id="pvp-host-panel" style="display:none;">
+                <div class="settings-hint">1. Send this code to the other player:</div>
+                <textarea id="pvp-host-code" class="settings-key-input" style="height:80px; font-size:0.55rem;" readonly onclick="pvpCopyCode('pvp-host-code')"></textarea>
+                <button class="btn full-btn" style="font-size:0.6rem; margin-bottom:14px; width:100%;" onclick="pvpCopyCode('pvp-host-code')">📋 COPY CODE</button>
+                <div class="settings-hint">2. Paste the reply code they send back:</div>
+                <textarea id="pvp-host-reply-input" class="settings-key-input" style="height:80px; font-size:0.55rem;" placeholder="Paste their reply code..."></textarea>
+                <button class="btn full-btn" style="width:100%;" onclick="pvpSubmitGuestReply()">CONNECT</button>
+            </div>
+            <div id="pvp-join-panel" style="display:none;">
+                <div class="settings-hint">1. Paste the host's code here:</div>
+                <textarea id="pvp-join-code-input" class="settings-key-input" style="height:80px; font-size:0.55rem;" placeholder="Paste the host's code..."></textarea>
+                <button class="btn full-btn" style="width:100%;" onclick="pvpSubmitHostCode()">GENERATE REPLY CODE</button>
+                <div id="pvp-join-reply-wrap" style="display:none; margin-top:14px;">
+                    <div class="settings-hint">2. Send this reply code back to the host:</div>
+                    <textarea id="pvp-join-reply-output" class="settings-key-input" style="height:80px; font-size:0.55rem;" readonly onclick="pvpCopyCode('pvp-join-reply-output')"></textarea>
+                    <button class="btn full-btn" style="font-size:0.6rem; width:100%;" onclick="pvpCopyCode('pvp-join-reply-output')">📋 COPY REPLY CODE</button>
+                </div>
+            </div>
+            <div id="pvp-connect-status" class="pvp-status" role="status" aria-live="polite"></div>
+            <button class="btn full-btn pvp-back" onclick="pvpBackToMethods()">← OTHER WAYS TO CONNECT</button>
+        </div>
+
+        <!-- 3. CONNECTING / LOADING SCREEN -->
+        <div id="pvp-view-wait" style="display:none;" role="status" aria-live="polite">
+            <div id="pvp-wait-spinner" class="pvp-big-spin" aria-hidden="true"></div>
+            <div id="pvp-wait-title" class="pvp-wait-title">Connecting…</div>
+            <div id="pvp-wait-sub" class="pvp-wait-sub"></div>
+            <ul id="pvp-steps" class="pvp-steps"></ul>
+            <div id="pvp-elapsed" class="pvp-elapsed"></div>
+            <div id="pvp-wait-error" class="pvp-error pvp-error-big" role="alert" style="display:none;"></div>
+            <div id="pvp-wait-share" style="display:none;">
+                <div class="pvp-share-box">
+                    <div class="pvp-share-row"><span>ROOM</span><b id="pvp-share-room"></b></div>
+                    <div class="pvp-share-row"><span>PASSWORD</span><b id="pvp-share-pass"></b></div>
+                    <input id="pvp-share-link" class="settings-key-input" type="text" readonly onclick="this.select()" aria-label="Invite link">
+                    <div class="pvp-row">
+                        <button class="btn full-btn" id="pvp-share-copy-btn" style="flex:1; font-size:0.6rem;" onclick="pvpCopyInvite(this)">📋 COPY LINK</button>
+                        <button class="btn full-btn" style="flex:1; font-size:0.6rem;" onclick="pvpShareInvite()">📤 SHARE</button>
+                    </div>
+                    <button class="btn full-btn" style="width:100%; font-size:0.6rem; margin-top:8px;" onclick="pvpCopyRoom(this)">📋 COPY ROOM + PASSWORD</button>
+                </div>
+            </div>
+            <button id="pvp-retry-btn" class="btn full-btn" style="display:none; width:100%; margin-top:12px;" onclick="pvpRetry()">🔁 TRY AGAIN</button>
+            <button class="btn full-btn pvp-back" onclick="pvpBackFromWait()">← BACK</button>
+        </div>
+
+        <button class="btn full-btn" style="margin-top:14px; opacity:0.7; width:100%;" onclick="pvpCancelConnect()">✕ CLOSE</button>
     </div>
 </div>
 
@@ -1053,6 +1160,7 @@
 </div>
 
 <script src="js/nav.js"></script>
+<script src="js/db.js"></script>
 <script src="js/app.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/charts.js"></script>
